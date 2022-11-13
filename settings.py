@@ -99,6 +99,7 @@ class Settings:
 		self.DCERPC_On_Off   = self.toBool(config.get('Responder Core', 'DCERPC'))
 		self.WinRM_On_Off    = self.toBool(config.get('Responder Core', 'WINRM'))
 		self.Krb_On_Off      = self.toBool(config.get('Responder Core', 'Kerberos'))
+		self.SNMP_On_Off     = self.toBool(config.get('Responder Core', 'SNMP'))
 
 		# Db File
 		self.DatabaseFile    = os.path.join(self.ResponderPATH, config.get('Responder Core', 'Database'))
@@ -178,6 +179,7 @@ class Settings:
 		self.SMBClearLog     = os.path.join(self.LogDir, 'SMB-Clear-Text-Password-%s.txt')
 		self.SMTPClearLog    = os.path.join(self.LogDir, 'SMTP-Clear-Text-Password-%s.txt')
 		self.MSSQLClearLog   = os.path.join(self.LogDir, 'MSSQL-Clear-Text-Password-%s.txt')
+		self.SNMPLog         = os.path.join(self.LogDir, 'SNMP-Clear-Text-Password-%s.txt')
 
 		self.LDAPNTLMv1Log   = os.path.join(self.LogDir, 'LDAP-NTLMv1-Client-%s.txt')
 		self.HTTPNTLMv1Log   = os.path.join(self.LogDir, 'HTTP-NTLMv1-Client-%s.txt')

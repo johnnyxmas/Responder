@@ -365,6 +365,10 @@ def main():
 			threads.append(Thread(target=serve_thread_udp, args=('', 53, DNS,)))
 			threads.append(Thread(target=serve_thread_tcp, args=(settings.Config.Bind_To, 53, DNSTCP,)))
 
+		if settings.Config.SNMP_On_Off:
+			from servers.SNMP import SNMP
+			threads.append(Thread(target=serve_thread_udp, args=('', 161, SNMP,)))
+
 		for thread in threads:
 			thread.daemon = True
 			thread.start()

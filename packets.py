@@ -359,7 +359,7 @@ class NTLM_Challenge(Packet):
 		("TargetNameLen",    "\x06\x00"),
 		("TargetNameMaxLen", "\x06\x00"),
 		("TargetNameOffset", "\x38\x00\x00\x00"),
-		("NegoFlags",        "\x05\x02\x89\xa2"),
+		("NegoFlags",        "\x05\x02\x81\xa2" if settings.Config.NOESS_On_Off else "\x05\x02\x89\xa2"),
 		("ServerChallenge",  ""),
 		("Reserved",         "\x00\x00\x00\x00\x00\x00\x00\x00"),
 		("TargetInfoLen",    "\x7e\x00"),
