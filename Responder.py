@@ -28,7 +28,7 @@ banner()
 parser = optparse.OptionParser(usage='python %prog -I eth0 -w -d\nor:\npython %prog -I eth0 -wd', version=settings.__version__, prog=sys.argv[0])
 parser.add_option('-A','--analyze',        action="store_true", help="Analyze mode. This option allows you to see NBT-NS, BROWSER, LLMNR requests without responding.", dest="Analyze", default=False)
 parser.add_option('-I','--interface',      action="store",      help="Network interface to use, you can use 'ALL' as a wildcard for all interfaces", dest="Interface", metavar="eth0", default=None)
-parser.add_option('-i','--ip',             action="store",      help="Local IP to use \033[1m\033[31m(only for OSX)\033[0m", dest="OURIP", metavar="10.0.0.21", default=None)
+parser.add_option('-i','--ip',             action="store",      help="Local IP to use \033[1m\033[31m(only for MacOS)\033[0m", dest="OURIP", metavar="10.0.0.21", default=None)
 parser.add_option('-6', "--externalip6",    action="store",      help="Poison all requests with another IPv6 address than Responder's one.", dest="ExternalIP6",  metavar="2002:c0a8:f7:1:3ba8:aceb:b1a9:81ed", default=None)
 parser.add_option('-e', "--externalip",    action="store",      help="Poison all requests with another IP address than Responder's one.", dest="ExternalIP",  metavar="10.0.0.22", default=None)
 parser.add_option('-b', '--basic',         action="store_true", help="Return a Basic HTTP authentication. Default: NTLM", dest="Basic", default=False)
@@ -50,8 +50,8 @@ options, args = parser.parse_args()
 if not os.geteuid() == 0:
     print(color("[!] Responder must be run as root."))
     sys.exit(-1)
-elif options.OURIP == None and IsOsX() == True:
-    print("\n\033[1m\033[31mOSX detected, -i mandatory option is missing\033[0m\n")
+elif options.OURIP == None and IsMacOS() == True:
+    print("\n\033[1m\033[31mMacOS detected, -i mandatory option is missing\033[0m\n")
     parser.print_help()
     exit(-1)
 
