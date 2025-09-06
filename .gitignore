@@ -3,3 +3,5 @@
 *.txt
 *.log
 
+certs/responder.crt
+certs/responder.key
