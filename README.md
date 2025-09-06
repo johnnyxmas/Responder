@@ -101,15 +101,52 @@ Edit this file /etc/NetworkManager/NetworkManager.conf and comment the line: `dn
 
 - This tool is not meant to work on Windows.
 
-- For macOS, please note: Responder must be launched with an IP address for the -i flag (e.g. -i YOUR_IP_ADDR). There is no native support in macOS for custom interface binding. Using -i en1 will not work. Also to run Responder with the best experience, run the following as root:
+- For macOS, please note: Responder must be launched with an IP address for the -i flag (e.g. -i YOUR_IP_ADDR). There is no native support in macOS for custom interface binding. Using -i en1 will not work.
 
-    launchctl bootout system /System/Library/LaunchDaemons/com.apple.Kerberos.kdc.plist
+## macOS Configuration
 
-    launchctl bootout system /System/Library/LaunchDaemons/com.apple.mDNSResponder.plist
+### System Integrity Protection (SIP)
 
-    launchctl bootout system /System/Library/LaunchDaemons/com.apple.smbd.plist
+For the best experience on macOS, you may want to disable System Integrity Protection (SIP) to allow automatic management of conflicting services. The included `macOS_Launcher.sh` script will detect your SIP status and inform you of any limitations.
 
-    launchctl bootout system /System/Library/LaunchDaemons/com.apple.netbiosd.plist
+#### How to Check SIP Status:
+```bash
+csrutil status
+```
+
+#### How to Disable SIP (Optional - for full functionality):
+1. Restart your Mac and hold `Command + R` during boot to enter Recovery Mode
+2. Open Terminal from the Utilities menu
+3. Run: `csrutil disable`
+4. Restart your Mac normally
+
+⚠️ **Security Note**: Disabling SIP reduces system security. Only disable it if you understand the implications and need full Responder functionality.
+
+#### Running with SIP Enabled:
+If you prefer to keep SIP enabled, you can still use Responder with these options:
+1. Disable conflicting modules in `Responder.conf` (e.g., set `SMB = Off`)
+2. The launcher script will show which services conflict
+3. Core functionality (HTTP, poisoning, etc.) still works
+
+### Using the macOS Launcher Script:
+```bash
+sudo ./macOS_Launcher.sh -I en0 -i YOUR_IP_ADDR
+```
+
+The launcher script will:
+- Check SIP status and inform you of limitations
+- Automatically stop conflicting services (if SIP is disabled)
+- Show port conflicts (if SIP is enabled)
+- Restore services after Responder exits
+
+### Manual Service Management (if not using launcher):
+To manually stop conflicting services (requires SIP disabled):
+```bash
+sudo launchctl bootout system /System/Library/LaunchDaemons/com.apple.Kerberos.kdc.plist
+sudo launchctl bootout system /System/Library/LaunchDaemons/com.apple.mDNSResponder.plist
+sudo launchctl bootout system /System/Library/LaunchDaemons/com.apple.smbd.plist
+sudo launchctl bootout system /System/Library/LaunchDaemons/com.apple.netbiosd.plist
+```
 
 ## Usage ##
 
