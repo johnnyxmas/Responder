@@ -16,6 +16,7 @@
 - [Network Poisoning](#network-poisoning)
 - [Rogue Servers](#rogue-servers)
 - [Configuration](#configuration)
+- [macOS](#macos)
 - [Troubleshooting](#troubleshooting)
 
 ---
@@ -843,7 +844,7 @@ sudo python3 Responder.py [options]
 |--------|-------------|
 | `-e 10.0.0.22, --externalip=10.0.0.22` | Poison requests with another IPv4 address |
 | `-6 ADDR, --externalip6=ADDR` | Poison requests with another IPv6 address |
-| `-i 10.0.0.21, --ip=10.0.0.21` | Local IP to use (OSX only) |
+| `-i 10.0.0.21, --ip=10.0.0.21` | Local IP to use (macOS only) |
 
 ### Authentication Options
 
@@ -932,6 +933,46 @@ SELECT * FROM hashes;
 - Enable IPv6 RA guard
 - Enable DHCPv6 guard
 - Monitor for rogue DHCPv6 servers
+
+---
+
+## macOS
+
+Responder works on macOS but requires the `-i` flag to specify your local IP address. macOS does not support the `SO_BINDTODEVICE` socket option used on Linux for interface binding.
+
+### Using the Launcher Script
+
+The included `macOS_Launcher.sh` handles service conflicts automatically:
+
+```bash
+sudo ./macOS_Launcher.sh -I en0
+```
+
+The launcher will:
+
+- Auto-detect your IP from the interface (or pass `-i` to override)
+- Check SIP status and report limitations
+- Stop conflicting macOS services (Kerberos, mDNSResponder, SMB, NetBIOS) if SIP is disabled
+- Report port conflicts if SIP is enabled
+- Restore all stopped services when Responder exits (including on Ctrl+C)
+
+### Running Directly
+
+```bash
+# Find your IP
+ipconfig getifaddr en0
+
+# Run with explicit IP
+sudo python3 Responder.py -I en0 -i 192.168.1.100
+```
+
+### System Integrity Protection (SIP)
+
+With SIP enabled (the default), macOS prevents stopping system services that bind to ports Responder needs. You have three options:
+
+1. **Use the launcher script** — it will report conflicts and continue with what's available
+2. **Disable conflicting modules** in `Responder.conf` (e.g., `SMB = Off`, `DNS = Off`)
+3. **Disable SIP** for full functionality (see [Apple's documentation](https://developer.apple.com/documentation/security/disabling-and-enabling-system-integrity-protection))
 
 ---
 
