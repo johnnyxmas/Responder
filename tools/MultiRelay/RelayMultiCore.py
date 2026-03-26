@@ -636,7 +636,7 @@ def MimiKatzRPC(Command, f, host, data, s):
         Output = ExtractRPCCommandOutput(data)[12:]
         while True:
             dataoffset = dataoffset + buffsize
-            if data[64:66] == b"\x05\x00" and data[67] == b"\x02":##Last DCE/RPC Frag
+            if data[64:66] == b"\x05\x00" and data[67:68] == b"\x02":##Last DCE/RPC Frag
                 LastFragLen = struct.unpack('<h', data[61:63])[0]
                 if LastFragLen < 1024:
                     Output += ExtractRPCCommandOutput(data)
@@ -646,7 +646,7 @@ def MimiKatzRPC(Command, f, host, data, s):
                     Output += ExtractRPCCommandOutput(data)
                     break
 
-            if data[64:66] == b"\x05\x00" and data[67] == b"\x03":##First and Last DCE/RPCFrag
+            if data[64:66] == b"\x05\x00" and data[67:68] == b"\x03":##First and Last DCE/RPCFrag
                 data, s, out = SMBDCERPCReadOutput(StructWithLenPython2or3("<i", dataoffset), StructWithLenPython2or3('<h', 4096),f, data, s)
                 Output += ExtractRPCCommandOutput(data)
                 break

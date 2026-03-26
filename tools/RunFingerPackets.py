@@ -1,4 +1,5 @@
-import random, struct, sys
+import random, struct, sys, os
+from os import urandom
 from socket import *
 from time import sleep
 from odict import OrderedDict
@@ -522,7 +523,7 @@ class SMBv2Negotiate(Packet):
         ("SecurityMode", "\x01\x00"),
         ("Reserved","\x00\x00"),
         ("Capabilities","\x00\x00\x00\x00"),
-        ("ClientGUID","\xd5\xa1\x5f\x6e\x9a\x75\xe1\x11\x87\x82\x00\x01\x4a\xf1\x18\xee"),
+        ("ClientGUID", urandom(16).decode('latin-1')),
         ("ClientStartTime","\x00\x00\x00\x00\x00\x00\x00\x00"),
         ("Dialect1","\x02\x02"),
         ("Dialect2","\x10\x02"),

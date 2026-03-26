@@ -168,9 +168,9 @@ class MSSQLBrowser(BaseRequestHandler):
 		if data:
 			if data[0] in b'\x02\x03': # CLNT_BCAST_EX / CLNT_UCAST_EX
 				self.send_response(soc, "MSSQLSERVER")
-			elif data[0] == b'\x04': # CLNT_UCAST_INST
-				self.send_response(soc, data[1:].rstrip("\x00"))
-			elif data[0] == b'\x0F': # CLNT_UCAST_DAC
+			elif data[0:1] == b'\x04': # CLNT_UCAST_INST
+				self.send_response(soc, data[1:].rstrip(b"\x00"))
+			elif data[0:1] == b'\x0F': # CLNT_UCAST_DAC
 				self.send_dac_response(soc)
 
 	def send_response(self, soc, inst):

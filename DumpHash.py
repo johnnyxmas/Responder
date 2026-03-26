@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # This file is part of Responder, a network take-over set of tools 
 # created and maintained by Laurent Gaffie.
 # email: laurent.gaffie@gmail.com

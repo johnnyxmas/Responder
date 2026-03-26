@@ -152,7 +152,7 @@ def color(txt, code = 1, modifier = 0):
     return "\033[%d;3%dm%s\033[0m" % (modifier, code, txt)
 
 def IsSigningEnabled(data):
-    if data[39] == "\x0f":
+    if data[39:40] == b"\x0f":
         return True
     else:
         return False

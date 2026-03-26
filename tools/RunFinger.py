@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # This file is part of Responder, a network take-over set of tools
 # created and maintained by Laurent Gaffie.
 # email: laurent.gaffie@gmail.com
@@ -106,7 +106,7 @@ def ParseNegotiateSMB2Ans(data):
 
 def SMB2SigningMandatory(data):
 	global SMB2signing
-	if data[70] == "\x03":
+	if data[70:71] == "\x03":
 		SMB2signing = "True"
 	else:
 		SMB2signing = "False"
@@ -123,7 +123,7 @@ def WorkstationFingerPrint(data):
  		b"\x06\x01"    :"Windows 7/Server 2008R2",
  		b"\x06\x02"    :"Windows 8/Server 2012",
  		b"\x06\x03"    :"Windows 8.1/Server 2012R2",
-		b"\x0A\x00"    :"Windows 10/Server 2016/2019 (check build)",
+		b"\x0A\x00"    :"Windows 10/Server 2016/2022 (check build)",
  	}.get(data, 'Other than Microsoft')
 
 def GetOsBuildNumber(data):
@@ -201,7 +201,7 @@ def IsDCVuln(t, host):
 #####################
 
 def IsSigningEnabled(data):
-    if data[39] == "\x0f":
+    if data[39:40] == "\x0f":
         return 'True'
     else:
         return 'False'
@@ -251,7 +251,6 @@ def DomainGrab(Host):
 		buffer0 = longueur(packet0)+packet0
 		s.send(NetworkSendBufferPython2or3(buffer0))
 		data = s.recv(2048)
-		s.close()
 		if data[8:10] == b'\x72\x00':
 			return GetHostnameAndDomainName(data)
 	except IOError as e:
@@ -359,12 +358,12 @@ def ConnectAndChoseSMB(host):
 				if not data:
 					break
 		except Exception:
-			pass
+			return False
 	else:
 		return False
 
 def handle(data, host):
-	if data[28] == "\x00":
+	if data[28:29] == "\x00":
 		a =  SMBv2Head()
 		a.calculate()
 		b = SMBv2Negotiate()
@@ -373,7 +372,7 @@ def handle(data, host):
 		buffer0 = longueur(packet0)+packet0
 		return buffer0
 
-	if data[28] == "\x01":
+	if data[28:29] == "\x01":
 		global Bootime
 		SMB2SigningMandatory(data)
 		Bootime = IsDCVuln(GetBootTime(data[116:124]), host[0])
@@ -385,7 +384,7 @@ def handle(data, host):
 		buffer0 = longueur(packet0)+packet0
 		return buffer0
 
-	if data[28] == "\x02":
+	if data[28:29] == "\x02":
 		ParseSMBNTLM2Exchange(data, host[0], Bootime, SMB2signing) 
 
 ##################

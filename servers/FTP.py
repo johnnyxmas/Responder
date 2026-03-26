@@ -55,5 +55,5 @@ class FTP(BaseRequestHandler):
 				data = self.request.recv(1024)
 
 		except Exception:
-			raise
+			self.request.close()
 			pass
